@@ -6,6 +6,8 @@ use tui::{
     backend::CrosstermBackend,
     Terminal
 };
+use tvm_rs::ui::ui;
+use tvm_rs::vm::tvm::Tvm;
 
 pub fn start_ui(tvm: &Tvm) -> Result<(), io::Error> {
     enable_raw_mode()?;

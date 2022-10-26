@@ -1,4 +1,4 @@
-mod vm;
+pub mod vm;
 mod memory;
 mod tape;
-mod ui;
+pub mod ui;
