@@ -1,3 +1,3 @@
-mod tvm;
+pub mod tvm;
 mod builtins;
 mod instruction;

@@ -3,7 +3,7 @@ use tui::Frame;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, List, Row, Table, TableState};
-use crate::Tvm;
+use crate::vm::tvm::Tvm;
 
 struct TvmEvents {
     written_memory: Vec<i32>,
