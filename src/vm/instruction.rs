@@ -1,12 +1,14 @@
+use serde_json::Value;
+
 pub enum Instruction {
-    Push,
-    Fetch,
+    Push(i32),
+    Fetch(i32),
     Store,
-    IF,
-    Loop,
+    IF(Vec<Value>),
+    Loop(Vec<Value>),
     Break,
     Return,
-    Call,
+    Call(i32),
     FPPlus,
     Add,
     Sub,
@@ -30,16 +32,16 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    pub fn get_instruction(op: i32) -> Instruction {
-        match op {
-            1 => Instruction::Push,
-            2 => Instruction::Fetch,
+    pub fn get_instruction(op_code: i32, addr: i32, frame: &[Value]) -> Instruction {
+        match op_code {
+            1 => Instruction::Push(frame[addr as usize].as_i64().unwrap() as i32),
+            2 => Instruction::Fetch(frame[addr as usize].as_i64().unwrap() as i32),
             3 => Instruction::Store,
-            4 => Instruction::IF,
-            5 => Instruction::Loop,
+            4 => Instruction::IF(frame[addr as usize].as_array().unwrap().to_vec()),
+            5 => Instruction::Loop(frame[addr as usize].as_array().unwrap().to_vec()),
             6 => Instruction::Break,
             7 => Instruction::Return,
-            8 => Instruction::Call,
+            8 => Instruction::Call(frame[addr as usize].as_i64().unwrap() as i32),
             9 => Instruction::FPPlus,
             10 => Instruction::Add,
             11 => Instruction::Sub,

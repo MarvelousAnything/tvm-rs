@@ -1,0 +1,111 @@
+[
+  [
+    1, // frame id of init function
+    36 // Amount of memory to allocate on the heap (note: I think heap is the correct term here)
+  ],
+  [
+    [65535, 0],
+    [19, 32],  // Starts string: " squared equals "
+    [20, 115],
+    [21, 113],
+    [22, 117],
+    [23, 97],
+    [24, 114],
+    [25, 101],
+    [26, 100],
+    [27, 32],
+    [28, 101],
+    [29, 113],
+    [30, 117],
+    [31, 97],
+    [32, 108],
+    [33, 115],
+    [34, 32],
+    [35, 0], // End of string
+    [0, 84], // Starts string: "Table of squares:"
+    [1, 97],
+    [2, 98],
+    [3, 108],
+    [4, 101],
+    [5, 32],
+    [6, 111],
+    [7, 102],
+    [8, 32],
+    [9, 115],
+    [10, 113],
+    [11, 117],
+    [12, 97],
+    [13, 114],
+    [14, 101],
+    [15, 115],
+    [16, 58],
+    [17, 10],
+    [18, 0] // End string
+  ],
+  [0, "sq" , 1, 0,
+    [
+      1, 1,
+      9,
+      2,
+      1, 1,
+      9,
+      2,
+      12,
+      7,
+      1, 0
+    ]
+  ],
+  [1, "init" , 0, 1,
+    [
+      // Print the header
+      1, 0, // Push 0. In this case, 0 is the memory location of the string "Table of squares:"
+      8, -102, // sprint "Table of squares:". Sprint pushes 0 to the stack. I do not know why yet.
+      25, // pop the output of sprint. This will be 0.
+
+      // Allocate memory for the variables used in the loop. This creates a new frame.
+      1, 1, // Push 1. The frame pointer will be added to this.
+      9, // FPPlus. Pushes the frame pointer plus the top of the stack to the top of the stack. This indicated the memory location of variable i.
+      1, 1, // Push 1 to the top of the stack
+      3, // Store. Stores the top of the stack to the memory location indicated by the second item on the stack. In this case, store mem[1] = fp + 1
+
+      5, [ // Starts the loop.
+        1, 1, // Push 1 to the top of the stack
+        9, // FPPlus. This offsets the frame pointer by one so that it points to the local variable i.
+        2, // Fetch the value of i from the stack and put it on the stack.
+
+        1, 10, // Push 10 to the top of the stack
+        23, // Greater than. This will push 1 to the stack if i > 10, and 0 otherwise.
+        6, // Break if the top of the stack is not equal to 0;
+        1, 1, // Push 1 to the top of the stack
+        9, // FPPlus. This offsets the frame pointer by one so that it points to the local variable i.
+        2, // Fetch the value of i from the stack and put it on the stack.
+
+        8, -101, // Call iprint with the value of i. This will print i to the screen.
+        25, // pop the output of iprint. This will be 0.
+
+        1, 19, // push 19. This is the memory location of the string " squared equals "
+        8, -102, // sprint " squared equals ". Sprint pushes 0 to the stack. I do not know why yet.
+        25, // pop the output of sprint. This will be 0.
+
+        1, 1, // Push 1 to the top of the stack
+        9, // FPPlus. This offsets the frame pointer by one so that it points to the local variable i.
+        2, // Fetch the value of i from the stack and put it on the stack.
+        8, 0, // Call sq with the value of i. This will push the square of i to the stack.
+        8, -101, // Call iprint with the value of i. This will print i to the screen.
+        25, // pop the output of iprint. This will be 0.
+        8, -105, // call newline. This will print a newline to the screen.
+        25, // pop the output of newline. This will be 0.
+        // increment i
+        1, 1, // Push 1 to the top of the stack
+        9, // FPPlus. This offsets the frame pointer by one so that it points to the local variable i.
+        1, 1, // Push 1 to the top of the stack
+        9, // FPPlus. This offsets the frame pointer by one so that it points to the local variable i.
+        2, // Fetch the value of i from the stack and put it on the stack.
+        1, 1, // Push 1 to the top of the stack
+        10, // .i + 1
+        3 // i : .i + 1
+      ],
+      1, 0 // push 0 to the top of the stack
+    ]
+  ]
+]

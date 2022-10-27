@@ -25,7 +25,11 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, tvm: &Tvm) {
 }
 
 pub fn to_table<'a>(tvm: &Tvm) -> Table<'a> {
-    let rows: Vec<Row> = tvm.mem.iter().enumerate().map(|(k, v)| Row::new(vec![k.to_string(), v.to_string()])).collect();
+    let rows: Vec<Row> = tvm.memory.iter().enumerate()
+        .filter(|(k, v)| (**v != 0) | (*k == tvm.stack_pointer) | (*k == tvm.frame_pointer))
+        .map(|(k, v)|
+            Row::new(vec![k.to_string(), v.to_string()]))
+        .collect();
     let table = Table::new(rows)
         .style(Style::default().fg(Color::White))
         .header(Row::new(vec!["Address", "Memory"])
