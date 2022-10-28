@@ -347,7 +347,6 @@ async function eval(l, pc) {
             break
         case 2:	/* fetch */
             console.debug("FETCH " + l[pc])
-            push(l[pc])
             a = pop()
             push(mem[a])
             break
