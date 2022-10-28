@@ -1,3 +1,5 @@
+use crate::vm::instruction::Instruction;
+
 pub enum BuiltIn {
     IPrint,
     SPrint,
@@ -6,11 +8,12 @@ pub enum BuiltIn {
     NL,
     Random,
     Timer,
-    STOPTIMER,
-    ALLOC,
-    FREE,
+    StopTimer,
+    Alloc,
+    Free,
     I2S,
-    UNKNOWN
+    Instruction(Instruction),
+    Unknown(i32),
 }
 
 impl BuiltIn {
@@ -23,11 +26,11 @@ impl BuiltIn {
             -105 => BuiltIn::NL,
             -106 => BuiltIn::Random,
             -107 => BuiltIn::Timer,
-            -108 => BuiltIn::STOPTIMER,
-            -109 => BuiltIn::ALLOC,
-            -110 => BuiltIn::FREE,
+            -108 => BuiltIn::StopTimer,
+            -109 => BuiltIn::Alloc,
+            -110 => BuiltIn::Free,
             -111 => BuiltIn::I2S,
-            _ => BuiltIn::UNKNOWN
+            n => BuiltIn::Instruction(Instruction::get_instruction(n)),
         }
     }
 }

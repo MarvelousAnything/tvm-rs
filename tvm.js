@@ -105,7 +105,7 @@ async function call(n) {
             break
         case -103:	/* iread */
             p = pop()
-            if(p == 0-1) {
+            if(p === 0-1) {
                 x = window.prompt("Integer input:")
             }
             else {
@@ -117,7 +117,7 @@ async function call(n) {
         case -104:	/* sread */
             a = pop()
             p = pop()
-            if(p == -1) {
+            if(p === -1) {
                 x = window.prompt("String input:")
             }
             else {

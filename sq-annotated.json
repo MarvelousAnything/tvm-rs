@@ -90,11 +90,13 @@
         1, 1, // Push 1 to the top of the stack
         9, // FPPlus. This offsets the frame pointer by one so that it points to the local variable i.
         2, // Fetch the value of i from the stack and put it on the stack.
+
         8, 0, // Call sq with the value of i. This will push the square of i to the stack.
         8, -101, // Call iprint with the value of i. This will print i to the screen.
         25, // pop the output of iprint. This will be 0.
         8, -105, // call newline. This will print a newline to the screen.
         25, // pop the output of newline. This will be 0.
+
         // increment i
         1, 1, // Push 1 to the top of the stack
         9, // FPPlus. This offsets the frame pointer by one so that it points to the local variable i.

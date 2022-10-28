@@ -1,14 +1,13 @@
-use serde_json::Value;
-
+#[derive(Debug)]
 pub enum Instruction {
-    Push(i32),
-    Fetch(i32),
+    Push,
+    Fetch,
     Store,
-    IF(Vec<Value>),
-    Loop(Vec<Value>),
+    IF,
+    Loop,
     Break,
     Return,
-    Call(i32),
+    Call,
     FPPlus,
     Add,
     Sub,
@@ -28,20 +27,20 @@ pub enum Instruction {
     Pop,
     LShift,
     RShift,
-    Unknown
+    Unknown(i32)
 }
 
 impl Instruction {
-    pub fn get_instruction(op_code: i32, addr: i32, frame: &[Value]) -> Instruction {
+    pub fn get_instruction(op_code: i32) -> Instruction {
         match op_code {
-            1 => Instruction::Push(frame[addr as usize].as_i64().unwrap() as i32),
-            2 => Instruction::Fetch(frame[addr as usize].as_i64().unwrap() as i32),
+            1 => Instruction::Push,
+            2 => Instruction::Fetch,
             3 => Instruction::Store,
-            4 => Instruction::IF(frame[addr as usize].as_array().unwrap().to_vec()),
-            5 => Instruction::Loop(frame[addr as usize].as_array().unwrap().to_vec()),
+            4 => Instruction::IF,
+            5 => Instruction::Loop,
             6 => Instruction::Break,
             7 => Instruction::Return,
-            8 => Instruction::Call(frame[addr as usize].as_i64().unwrap() as i32),
+            8 => Instruction::Call,
             9 => Instruction::FPPlus,
             10 => Instruction::Add,
             11 => Instruction::Sub,
@@ -61,7 +60,7 @@ impl Instruction {
             25 => Instruction::Pop,
             26 => Instruction::LShift,
             27 => Instruction::RShift,
-            _ => Instruction::Unknown
+            _ => Instruction::Unknown(op_code)
         }
     }
 }

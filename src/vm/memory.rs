@@ -1,57 +1,52 @@
 use std::ops;
-use crate::vm::register::Pointer;
+use crate::vm::pointer::Pointer;
 
-pub struct Memory<'a> {
+#[derive(Debug)]
+pub struct Memory {
     pub mem: [i32; 65536],
-    pub stack_pointer: Pointer<'a>,
-    pub frame_pointer: Pointer<'a>,
+    pub stack_pointer: Pointer,
+    pub frame_pointer: Pointer,
 }
 
-impl Memory<'_> {
-    pub fn new<'a>() -> Memory<'a> {
+impl Memory {
+    pub fn new() -> Memory {
         Memory {
             mem: [0; 65536],
-            stack_pointer: Pointer::StackPointer(&mut 65535),
-            frame_pointer: Pointer::FramePointer(&mut 65535),
+            stack_pointer: Pointer::StackPointer(65535),
+            frame_pointer: Pointer::FramePointer(65535),
         }
     }
 
     pub fn push(&mut self, value: i32) {
-        self[&self.stack_pointer] = value;
-        self.stack_pointer += 1;
+        self.mem[self.stack_pointer.value()] = value;
+        self.stack_pointer = &self.stack_pointer << 1;
     }
-
-    pub fn pop(&mut self) -> i32 {
-        self.stack_pointer -= 1;
-        self.mem[self.stack_pointer]
-    }
-
 
 }
 
-impl ops::Index<&Pointer<'_>> for Memory<'_> {
+impl ops::Index<&Pointer> for Memory {
     type Output = i32;
 
     fn index(&self, ptr: &Pointer) -> &Self::Output {
         match ptr {
-            Pointer::StackPointer(sp) => &self.mem[**sp],
-            Pointer::FramePointer(fp) => &self.mem[**fp],
-            Pointer::ReferencePointer(rp) => &self.mem[**rp],
+            Pointer::StackPointer(sp) => &self.mem[*sp],
+            Pointer::FramePointer(fp) => &self.mem[*fp],
+            Pointer::ReferencePointer(rp) => &self.mem[*rp],
         }
     }
 }
 
-impl ops::IndexMut<&Pointer<'_>> for Memory<'_> {
+impl ops::IndexMut<&Pointer> for Memory {
     fn index_mut(&mut self, ptr: &Pointer) -> &mut Self::Output {
         match ptr {
-            Pointer::StackPointer(sp) => &mut self.mem[**sp],
-            Pointer::FramePointer(fp) => &mut self.mem[**fp],
-            Pointer::ReferencePointer(rp) => &mut self.mem[**rp],
+            Pointer::StackPointer(sp) => &mut self.mem[*sp],
+            Pointer::FramePointer(fp) => &mut self.mem[*fp],
+            Pointer::ReferencePointer(rp) => &mut self.mem[*rp],
         }
     }
 }
 
-impl ops::Index<usize> for Memory<'_> {
+impl ops::Index<usize> for Memory {
     type Output = i32;
 
     fn index(&self, ptr: usize) -> &Self::Output {
@@ -59,13 +54,13 @@ impl ops::Index<usize> for Memory<'_> {
     }
 }
 
-impl ops::IndexMut<usize> for Memory<'_> {
+impl ops::IndexMut<usize> for Memory {
     fn index_mut(&mut self, ptr: usize) -> &mut Self::Output {
         &mut self[&Pointer::from(ptr)]
     }
 }
 
-impl ops::Shl<i32> for &Memory<'_> {
+impl ops::Shl<i32> for Memory {
     type Output = ();
 
     fn shl(mut self, rhs: i32) -> Self::Output {
