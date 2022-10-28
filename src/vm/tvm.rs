@@ -1,4 +1,7 @@
 use std::borrow::Borrow;
+use std::io;
+use std::io::Read;
+use crossterm::terminal;
 use rand::Rng;
 use crate::vm::builtins::BuiltIn;
 use crate::vm::function::{Function, FrameData, Frame};
@@ -42,8 +45,16 @@ impl Tvm {
         }
     }
 
+    fn pause() {
+        terminal::enable_raw_mode().expect("Could not turn on Raw mode");
+        let mut buf = [0; 1];
+        while io::stdin().read(&mut buf).expect("Failed to read line") == 1 && buf != [b'q'] {}
+        terminal::disable_raw_mode().expect("Could not turn off raw mode");
+    }
+
     pub fn start(&mut self) {
         self.call(self.get_callable(self.program.entry_point as i32));
+        Self::pause();
         println!("halt");
     }
 
@@ -85,6 +96,7 @@ impl Tvm {
     }
 
     pub fn call(&mut self, callable: Callable) {
+        Self::pause();
         match callable {
             Callable::Function(function) => {
                 let frame = function.frame.borrow();
@@ -193,6 +205,7 @@ impl Tvm {
     }
 
     pub fn eval_frame(&mut self, frame: &Frame) -> i32 {
+        Self::pause();
         let mut pc = 0;
         self.depth += 1;
         while pc >= 0 {
@@ -208,6 +221,7 @@ impl Tvm {
             return -1;
         }
         print!("{}{}: ", "\t".repeat(self.depth), pc);
+        Self::pause();
         let data = &frame.frame_data[pc as usize];
         pc += 1;
         match data {
