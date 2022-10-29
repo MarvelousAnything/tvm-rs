@@ -1,20 +1,25 @@
-use std::borrow::Borrow;
-use std::io;
-use std::io::Read;
-use crossterm::terminal;
-use rand::Rng;
+use std::any::Any;
 use crate::vm::builtins::BuiltIn;
-use crate::vm::function::{Function, FrameData, Frame};
+use crate::vm::function::{Frame, FrameData, Function};
 use crate::vm::instruction::Instruction;
 use crate::vm::memory::Memory;
 use crate::vm::program::Program;
+use rand::Rng;
+use std::borrow::Borrow;
+use std::cell::Ref;
+use crate::vm::state::{CallState, EvalState, EvalFrameState, State, PausedState, Waiting, TvmState};
+
+const SLEEP_TIME: u64 = 1;
 
 #[derive(Debug)]
 pub struct Tvm {
     pub memory: Memory,
     pub program: Program,
     pub depth: usize,
-    pub stdout: String
+    pub frame_id_counter: usize,
+    pub stdout: String,
+    pub state: TvmState<'static>,
+    pub paused: bool,
 }
 
 pub enum Callable {
@@ -33,7 +38,7 @@ impl Callable {
 
 impl Tvm {
     pub fn new(program: Program) -> Tvm {
-        let mut memory = Memory::new();
+        let mut memory = Memory::default();
         for (location, value) in &program.heap {
             memory[*location] = *value;
         }
@@ -41,21 +46,32 @@ impl Tvm {
             memory,
             program,
             depth: 0,
-            stdout: String::new()
+            frame_id_counter: 0,
+            stdout: String::new(),
+            state: Box::new(Waiting),
+            paused: false,
         }
     }
 
-    fn pause() {
-        terminal::enable_raw_mode().expect("Could not turn on Raw mode");
-        let mut buf = [0; 1];
-        while io::stdin().read(&mut buf).expect("Failed to read line") == 1 && buf != [b'q'] {}
-        terminal::disable_raw_mode().expect("Could not turn off raw mode");
+    pub fn set_state<T: State<T>>(&mut self, state: Box<dyn State<T>>) {
+        self.state = state;
     }
 
     pub fn start(&mut self) {
         self.call(self.get_callable(self.program.entry_point as i32));
-        Self::pause();
-        println!("halt");
+        self.tick();
+    }
+
+    pub fn tick(&mut self) {
+        self.state.tick(self);
+    }
+
+    pub fn pause(&mut self) {
+        self.state.pause(self);
+    }
+
+    pub fn resume(&mut self) {
+        self.state.resume(self);
     }
 
     fn get_callable(&self, id: i32) -> Callable {
@@ -96,9 +112,14 @@ impl Tvm {
     }
 
     pub fn call(&mut self, callable: Callable) {
-        Self::pause();
+        self.set_state(Box::new(CallState { callable }));
+    }
+
+    pub fn do_call(&mut self, callable: Callable) {
         match callable {
-            Callable::Function(function) => {
+            Callable::Function(mut function) => {
+                function.frame.frame_id = self.frame_id_counter;
+                self.frame_id_counter += 1;
                 let frame = function.frame.borrow();
                 // expect that arguments have already been pushed to the stack
                 // push zero to the stack for the local data
@@ -110,18 +131,20 @@ impl Tvm {
                 // set the frame pointer to the value of the stack pointer prior to pushing the frame pointer to the stack
                 self.memory.frame_pointer = self.memory.stack_pointer + 1;
                 // evaluate the function
-                self.eval_frame(frame);
+                self.eval_frame(frame.to_owned());
                 // pop the return value from the top of the stack
                 let r = self.memory.pop();
                 // copy the frame pointer to the stack pointer
                 self.memory.stack_pointer = self.memory.frame_pointer;
+                self.memory.update_state();
                 // copy the top of the stack into the frame pointer
                 self.memory.frame_pointer = self.memory.peek() as usize;
                 // Increment the stack pointer by the number of local variables and parameters of the function
                 self.memory.stack_pointer += (function.locals + function.args) as usize;
+                self.memory.update_state();
                 // push the return value to the stack
                 self.memory.push(r);
-            },
+            }
             Callable::BuiltIn(builtin) => {
                 match builtin {
                     BuiltIn::IPrint { .. } => {
@@ -142,9 +165,11 @@ impl Tvm {
                         } else {
                             prompt = self.a2s(prompt_addr);
                         }
-                        print!("{}", prompt);
+                        // print!("{}", prompt);
                         let mut input = String::new();
-                        std::io::stdin().read_line(&mut input).expect("Failed to read line");
+                        std::io::stdin()
+                            .read_line(&mut input)
+                            .expect("Failed to read line");
                         let arg = input.trim().parse::<i32>().expect("Failed to parse input");
                         self.memory.push(arg);
                     }
@@ -157,9 +182,11 @@ impl Tvm {
                         } else {
                             prompt = self.a2s(prompt_addr);
                         }
-                        print!("{}", prompt);
+                        // print!("{}", prompt);
                         let mut input = String::new();
-                        std::io::stdin().read_line(&mut input).expect("Failed to read line");
+                        std::io::stdin()
+                            .read_line(&mut input)
+                            .expect("Failed to read line");
                         let arg = input.trim().to_string();
                         self.write_str(addr as usize, arg);
                         self.memory.push(0);
@@ -204,24 +231,26 @@ impl Tvm {
         }
     }
 
-    pub fn eval_frame(&mut self, frame: &Frame) -> i32 {
-        Self::pause();
+    pub fn do_eval_frame(&mut self, frame: &Frame) -> i32 {
         let mut pc = 0;
         self.depth += 1;
         while pc >= 0 {
-            pc = self.eval(frame, pc);
+            pc = self.do_eval(frame, pc);
         }
         self.depth -= 1;
-        // println!("Frame returned");
+        // // println!("Frame returned");
         pc
     }
 
-    pub fn eval(&mut self, frame: &Frame, mut pc: i32) -> i32 {
+    pub fn eval_frame(&mut self, frame: Frame) {
+        self.set_state(Box::new(EvalFrameState { frame }));
+    }
+
+    pub fn do_eval(&mut self, frame: &Frame, mut pc: i32) -> i32 {
         if pc >= frame.frame_data.len() as i32 {
             return -1;
         }
-        print!("{}{}: ", "\t".repeat(self.depth), pc);
-        Self::pause();
+        // print!("Frame {}{}{}: ", self.depth, "\t".repeat(self.depth), pc);
         let data = &frame.frame_data[pc as usize];
         pc += 1;
         match data {
@@ -230,39 +259,39 @@ impl Tvm {
                     Instruction::Push { .. } => {
                         let fd = &frame.frame_data[pc as usize];
                         let to_push = match fd {
-                            FrameData::Function(Function{id, ..}) => *id as i32,
+                            FrameData::Function(Function { id, .. }) => *id as i32,
                             FrameData::BuiltIn(builtin) => builtin.get_id(),
                             FrameData::Instruction(instruction) => instruction.get_op() as i32,
                             FrameData::Primitive(n) => *n,
                             FrameData::Frame(_) => panic!("Cannot push a frame"),
                         };
                         self.memory.push(to_push);
-                        println!("PUSH {}", to_push);
+                        // println!("PUSH {}", to_push);
                         pc += 1;
                     }
                     Instruction::Fetch { .. } => {
                         let index = self.memory.pop();
                         self.memory.push(self.memory[index as usize]);
-                        println!("FETCH {} = {}", index, self.memory[index as usize]);
+                        // println!("FETCH {} = {}", index, self.memory[index as usize]);
                     }
                     Instruction::Store { .. } => {
                         let value = self.memory.pop();
                         let index = self.memory.pop() as usize;
                         self.memory[index] = value;
-                        println!("STORE {} {}", index, value);
+                        // println!("STORE {} {}", index, value);
                     }
                     Instruction::IF { .. } => {
                         let arg = self.memory.pop();
-                        println!("IF {}", arg);
+                        // println!("IF {}", arg);
                         let fd = &frame.frame_data[pc as usize];
                         let r: i32;
                         let next_frame = self.get_next_frame(fd);
                         if arg != 0 {
-                            r = self.eval_frame(next_frame);
+                            r = self.do_eval_frame(next_frame);
                             pc += 2;
                         } else {
                             pc += 1;
-                            r = self.eval_frame(next_frame);
+                            r = self.do_eval_frame(next_frame);
                             pc += 1;
                         }
 
@@ -271,11 +300,11 @@ impl Tvm {
                         }
                     }
                     Instruction::Loop { .. } => {
-                        println!("LOOP");
+                        // println!("LOOP");
                         loop {
                             let fd = &frame.frame_data[pc as usize];
                             let next_frame = self.get_next_frame(fd);
-                            let r = self.eval_frame(next_frame);
+                            let r = self.do_eval_frame(next_frame);
                             if r == -2 {
                                 break;
                             } else if r == -3 {
@@ -286,13 +315,13 @@ impl Tvm {
                     }
                     Instruction::Break { .. } => {
                         let x = self.memory.pop();
-                        println!("BREAK {}", x);
+                        // println!("BREAK {}", x);
                         if x != 0 {
                             return -2;
                         }
                     }
                     Instruction::Return { .. } => {
-                        println!("RETURN");
+                        // println!("RETURN");
                         return -3;
                     }
                     Instruction::Call { .. } => {
@@ -305,131 +334,135 @@ impl Tvm {
                                     panic!("Cannot call primitive {}", n);
                                 }
                                 Callable::Function(self.program.functions[*n as usize].clone())
-                            },
+                            }
                             FrameData::Instruction(_) => panic!("Cannot call an instruction"),
                             FrameData::Frame(_) => panic!("Cannot call a frame"),
                         };
-                        println!("CALL {}", callable.get_name());
+                        // println!("CALL {}", callable.get_name());
                         self.call(callable);
                         pc += 1;
                     }
                     Instruction::FPPlus { .. } => {
                         let x = self.memory.pop();
                         self.memory.push(self.memory.frame_pointer as i32 + x);
-                        println!("FP+ {} + {}", self.memory.frame_pointer, x);
+                        // println!("FP+ {} + {}", self.memory.frame_pointer, x);
                     }
                     Instruction::Add { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push(x + y);
-                        println!("ADD {} {}", x, y);
+                        // println!("ADD {} {}", x, y);
                     }
                     Instruction::Sub { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push(x - y);
-                        println!("SUB {} {}", x, y);
+                        // println!("SUB {} {}", x, y);
                     }
                     Instruction::Mul { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push(x * y);
-                        println!("MUL {} {}", x, y);
+                        // println!("MUL {} {}", x, y);
                     }
                     Instruction::Div { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push(x / y);
-                        println!("DIV {} {}", x, y);
+                        // println!("DIV {} {}", x, y);
                     }
                     Instruction::Mod { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push(x % y);
-                        println!("MOD {} {}", x, y);
+                        // println!("MOD {} {}", x, y);
                     }
                     Instruction::Not { .. } => {
                         let x = self.memory.pop();
                         self.memory.push(!x);
-                        println!("NOT {}", x);
+                        // println!("NOT {}", x);
                     }
                     Instruction::And { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push(x & y);
-                        println!("AND {} {}", x, y);
+                        // println!("AND {} {}", x, y);
                     }
                     Instruction::OR { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push(x | y);
-                        println!("OR {} {}", x, y);
+                        // println!("OR {} {}", x, y);
                     }
                     Instruction::Xor { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push(x ^ y);
-                        println!("XOR {} {}", x, y);
+                        // println!("XOR {} {}", x, y);
                     }
                     Instruction::EQ { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push((x == y) as i32);
-                        println!("EQ {} {}", x, y);
+                        // println!("EQ {} {}", x, y);
                     }
                     Instruction::Neq { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push((x != y) as i32);
-                        println!("NEQ {} {}", x, y);
+                        // println!("NEQ {} {}", x, y);
                     }
                     Instruction::LT { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push((x < y) as i32);
-                        println!("LT {} {}", x, y);
+                        // println!("LT {} {}", x, y);
                     }
                     Instruction::Leq { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push((x <= y) as i32);
-                        println!("LEQ {} {}", x, y);
+                        // println!("LEQ {} {}", x, y);
                     }
                     Instruction::GT { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push((x > y) as i32);
-                        println!("GT {} {}", x, y);
+                        // println!("GT {} {}", x, y);
                     }
                     Instruction::Geq { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push((x >= y) as i32);
-                        println!("GEQ {} {}", x, y);
+                        // println!("GEQ {} {}", x, y);
                     }
                     Instruction::Pop { .. } => {
                         self.memory.pop();
-                        println!("POP");
+                        // println!("POP");
                     }
                     Instruction::LShift { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push(x << y);
-                        println!("LSHIFT {} {}", x, y);
+                        // println!("LSHIFT {} {}", x, y);
                     }
                     Instruction::RShift { .. } => {
                         let y = self.memory.pop();
                         let x = self.memory.pop();
                         self.memory.push(x >> y);
-                        println!("RSHIFT {} {}", x, y);
+                        // println!("RSHIFT {} {}", x, y);
                     }
                     Instruction::Unknown(op) => panic!("Unknown opcode {}", op),
                 }
                 pc
-            },
+            }
             FrameData::Frame(_) => panic!("Cannot evaluate a frame"),
             FrameData::Function(_) | FrameData::BuiltIn(_) => panic!("Cannot evaluate a function"),
             FrameData::Primitive(_) => panic!("Cannot evaluate a primitive"),
         }
+    }
+
+    pub fn eval(&mut self, frame: Ref<Frame>, pc: i32) {
+        self.set_state(Box::new(EvalState { frame: frame.to_owned(), pc }));
     }
 }

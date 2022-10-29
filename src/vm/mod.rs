@@ -1,6 +1,7 @@
-pub mod tvm;
-pub mod instruction;
+mod builtins;
 pub mod function;
+pub mod instruction;
 pub mod memory;
 pub mod program;
-mod builtins;
+pub mod tvm;
+mod state;

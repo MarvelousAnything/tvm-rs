@@ -1,34 +1,78 @@
 #[derive(Debug, Clone)]
 pub enum BuiltIn {
-    IPrint{id: i32, name: String, args: u32},
-    SPrint{id: i32, name: String, args: u32},
-    IRead{id: i32, name: String, args: u32},
-    SRead{id: i32, name: String, args: u32},
-    NL{id: i32, name: String, args: u32},
-    Random{id: i32, name: String, args: u32},
-    Timer{id: i32, name: String, args: u32},
-    StopTimer{id: i32, name: String, args: u32},
-    Alloc{id: i32, name: String, args: u32},
-    Free{id: i32, name: String, args: u32},
-    I2S{id: i32, name: String, args: u32},
+    IPrint { id: i32, name: String, args: u32 },
+    SPrint { id: i32, name: String, args: u32 },
+    IRead { id: i32, name: String, args: u32 },
+    SRead { id: i32, name: String, args: u32 },
+    NL { id: i32, name: String, args: u32 },
+    Random { id: i32, name: String, args: u32 },
+    Timer { id: i32, name: String, args: u32 },
+    StopTimer { id: i32, name: String, args: u32 },
+    Alloc { id: i32, name: String, args: u32 },
+    Free { id: i32, name: String, args: u32 },
+    I2S { id: i32, name: String, args: u32 },
     Unknown(i32),
 }
 
 impl BuiltIn {
     pub fn get_builtin(id: i32) -> BuiltIn {
         match id {
-            -101 => BuiltIn::IPrint { id, name: "iprint".to_string(), args: 1 },
-            -102 => BuiltIn::SPrint { id, name: "sprint".to_string(), args: 1 },
-            -103 => BuiltIn::IRead { id, name: "iread".to_string(), args: 1 },
-            -104 => BuiltIn::SRead { id, name: "sread".to_string(), args: 2 },
-            -105 => BuiltIn::NL { id, name: "nl".to_string(), args: 0 },
-            -106 => BuiltIn::Random { id, name: "random".to_string(), args: 1 },
-            -107 => BuiltIn::Timer { id, name: "timer".to_string(), args: 2 },
-            -108 => BuiltIn::StopTimer { id, name: "stoptimer".to_string(), args: 1 },
-            -109 => BuiltIn::Alloc { id, name: "alloc".to_string(), args: 1 },
-            -110 => BuiltIn::Free { id, name: "free".to_string(), args: 1 },
-            -111 => BuiltIn::I2S { id, name: "i2s".to_string(), args: 1 },
-            n => BuiltIn::Unknown(n)
+            -101 => BuiltIn::IPrint {
+                id,
+                name: "iprint".to_string(),
+                args: 1,
+            },
+            -102 => BuiltIn::SPrint {
+                id,
+                name: "sprint".to_string(),
+                args: 1,
+            },
+            -103 => BuiltIn::IRead {
+                id,
+                name: "iread".to_string(),
+                args: 1,
+            },
+            -104 => BuiltIn::SRead {
+                id,
+                name: "sread".to_string(),
+                args: 2,
+            },
+            -105 => BuiltIn::NL {
+                id,
+                name: "nl".to_string(),
+                args: 0,
+            },
+            -106 => BuiltIn::Random {
+                id,
+                name: "random".to_string(),
+                args: 1,
+            },
+            -107 => BuiltIn::Timer {
+                id,
+                name: "timer".to_string(),
+                args: 2,
+            },
+            -108 => BuiltIn::StopTimer {
+                id,
+                name: "stoptimer".to_string(),
+                args: 1,
+            },
+            -109 => BuiltIn::Alloc {
+                id,
+                name: "alloc".to_string(),
+                args: 1,
+            },
+            -110 => BuiltIn::Free {
+                id,
+                name: "free".to_string(),
+                args: 1,
+            },
+            -111 => BuiltIn::I2S {
+                id,
+                name: "i2s".to_string(),
+                args: 1,
+            },
+            n => BuiltIn::Unknown(n),
         }
     }
 
