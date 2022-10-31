@@ -20,7 +20,6 @@ use tui::widgets::Paragraph;
 use tvm_rs::vm::program::Program;
 use tvm_rs::vm::tvm::Tvm;
 
-#[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let program = Program::from_file("sq.json".to_string());
     // println!("{}", program);

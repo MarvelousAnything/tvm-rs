@@ -1,4 +1,4 @@
-use std::any::Any;
+
 use crate::vm::builtins::BuiltIn;
 use crate::vm::function::{Frame, FrameData, Function};
 use crate::vm::instruction::Instruction;
@@ -7,7 +7,7 @@ use crate::vm::program::Program;
 use rand::Rng;
 use std::borrow::Borrow;
 use std::cell::Ref;
-use crate::vm::state::{CallState, EvalState, EvalFrameState, State, PausedState, Waiting, TvmState};
+use crate::vm::state::{CallState, EvalState, EvalFrameState, WaitingState, StateBox};
 
 const SLEEP_TIME: u64 = 1;
 
@@ -18,7 +18,7 @@ pub struct Tvm {
     pub depth: usize,
     pub frame_id_counter: usize,
     pub stdout: String,
-    pub state: TvmState<'static>,
+    pub state: StateBox,
     pub paused: bool,
 }
 
@@ -48,12 +48,13 @@ impl Tvm {
             depth: 0,
             frame_id_counter: 0,
             stdout: String::new(),
-            state: Box::new(Waiting),
+            state: Box::new(WaitingState),
             paused: false,
         }
     }
 
-    pub fn set_state<T: State<T>>(&mut self, state: Box<dyn State<T>>) {
+    pub fn set_state(&mut self, mut state: StateBox) {
+        state.set_previous_state(self.state);
         self.state = state;
     }
 
@@ -112,7 +113,10 @@ impl Tvm {
     }
 
     pub fn call(&mut self, callable: Callable) {
-        self.set_state(Box::new(CallState { callable }));
+        self.set_state(Box::new(CallState {
+            callable,
+            previous_state: Option::from(self.state.clone()),
+        }));
     }
 
     pub fn do_call(&mut self, callable: Callable) {
@@ -243,7 +247,7 @@ impl Tvm {
     }
 
     pub fn eval_frame(&mut self, frame: Frame) {
-        self.set_state(Box::new(EvalFrameState { frame }));
+        self.set_state(Box::new(EvalFrameState { frame, previous_state: Some(self.state.clone()) }));
     }
 
     pub fn do_eval(&mut self, frame: &Frame, mut pc: i32) -> i32 {
