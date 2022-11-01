@@ -1,5 +1,7 @@
 use crate::frame::Frame;
-use crate::state::{StateResult, TvmState};
+use crate::instruction::Instruction;
+use crate::state::{Stateful, StateResult, TvmState};
+use crate::state::StateResult::Continue;
 
 #[derive(Debug, Clone)]
 pub struct Tvm {
@@ -23,19 +25,33 @@ impl Default for Tvm {
             state: TvmState::Waiting,
             ticks: 0,
             previous_state: None,
-            last_result: None,
+            last_result: Some(Continue),
         }
     }
 }
 
 impl Tvm {
-    pub fn frame_eval(&mut self, frame: Frame) {
-        self.state = TvmState::FrameEval(frame);
+
+    pub fn start(&mut self) {
+        let builder = Frame::builder();
+        let frame = builder
+            .id(0)
+            .name("main".to_string())
+            .instruction(Instruction::get_instruction(1), vec![])
+            .primitive(0)
+            .callable(-101, vec![])
+            .instruction(Instruction::get_instruction(8), vec![])
+            .primitive(-109)
+            .primitive(10)
+            .build();
+
+        self.frame_eval(frame);
     }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::state::Stateful;
     use super::*;
 
     #[test]
@@ -48,5 +64,24 @@ mod test {
         assert_eq!(tvm.state, TvmState::Waiting);
         assert_eq!(tvm.ticks, 0);
         assert_eq!(tvm.previous_state, None);
+    }
+
+    #[test]
+    fn test_tick_count() {
+        let mut tvm = Tvm::default();
+        tvm.tick();
+        tvm.tick();
+        tvm.tick();
+        tvm.tick();
+        tvm.tick();
+        tvm.tick();
+        tvm.tick();
+        tvm.tick();
+        tvm.tick();
+        tvm.tick();
+        tvm.tick();
+        tvm.tick();
+
+        assert_eq!(tvm.ticks, 12);
     }
 }

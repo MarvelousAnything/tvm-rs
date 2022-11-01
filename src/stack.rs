@@ -23,11 +23,13 @@ impl StackHolder for Tvm {
     }
 
     fn pop(&mut self) -> i32 {
+        println!("Popping from stack");
         self.stack_pointer += 1;
         self.memory[self.stack_pointer]
     }
 
     fn push(&mut self, value: i32) {
+        println!("Pushing {} to stack", value);
         self.memory[self.stack_pointer] = value;
         self.stack_pointer -= 1;
     }

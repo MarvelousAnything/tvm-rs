@@ -1,3 +1,4 @@
+use crate::state::Stateful;
 use crate::tvm::Tvm;
 
 mod tvm;
@@ -12,6 +13,16 @@ mod function;
 mod instruction;
 
 fn main() {
-    let tvm = Tvm::default();
-    println!("{:?}", tvm);
+    use std::io::{ stdin ,stdout, Write};
+    let mut s = String::new();
+    let _ = stdout().flush();
+    let mut tvm = Tvm::default();
+    tvm.start();
+    loop {
+        stdin().read_line(&mut s).expect("Did not enter a correct string");
+        if !s.is_empty() {
+            print!("Tick {}:\t\t", tvm.ticks);
+            tvm.tick();
+        }
+    }
 }
