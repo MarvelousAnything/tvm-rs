@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::ops::Deref;
 use std::rc::Rc;
 use crate::callable::Callable;
 use crate::frame::Frame;
@@ -12,7 +13,7 @@ pub trait State : Debug {
 pub enum StateResult {
     Return(i32),
     Break,
-    Continue,
+    Continue(i32),
     Exit,
 }
 
@@ -36,6 +37,37 @@ impl TvmState {
             TvmState::FrameEval(frame) => Box::new(states::FrameEval { frame: frame.clone() }),
             TvmState::Halted => Box::new(states::Halted),
         }
+    }
+
+    pub fn update_eval(&mut self, frame: Frame, pc: usize) {
+        if let TvmState::Eval(ref mut prev_frame) = self {
+            prev_frame.data = frame.data;
+            prev_frame.pc = pc;
+        }
+    }
+
+    pub fn frame_eval(frame: Frame) -> Self {
+        TvmState::FrameEval(frame)
+    }
+
+    pub fn eval(frame: Frame) -> Self {
+        TvmState::Eval(frame)
+    }
+
+    pub fn call(callable: Callable) -> Self {
+        TvmState::Call(callable)
+    }
+
+    pub fn paused() -> Self {
+        TvmState::Paused
+    }
+
+    pub fn waiting() -> Self {
+        TvmState::Waiting
+    }
+
+    pub fn halted() -> Self {
+        TvmState::Halted
     }
 
     pub fn is_waiting(&self) -> bool {
@@ -77,7 +109,7 @@ pub trait Stateful : Debug {
     fn handle_result(&mut self, result: StateResult);
 
     fn call(&mut self, callable: Callable) {
-        self.set_state(TvmState::Call(callable));
+        self.set_state(TvmState::call(callable));
     }
 
     fn eval(&mut self, frame: Frame) {
@@ -94,6 +126,8 @@ pub trait Stateful : Debug {
             || matches!(self.get_last_result(), Some(StateResult::Break))
             || matches!(self.get_last_result(), Some(StateResult::Return(_)))
     }
+
+    fn get_next_state(&mut self) -> Option<TvmState>;
 }
 
 impl Stateful for Tvm {
@@ -116,7 +150,11 @@ impl Stateful for Tvm {
     }
 
     fn previous_state(&self) -> Option<TvmState> {
-        self.previous_state.clone()
+        if let Some(TvmState::Eval(frame)) = &self.previous_state {
+            Some(TvmState::Eval(frame.clone()))
+        } else {
+            None
+        }
     }
 
     fn pause(&mut self) {
@@ -135,9 +173,11 @@ impl Stateful for Tvm {
         // Do nothing if the tvm is paused
         if !self.is_paused() {
             self.increment_ticks();
-            self.state.to_state().tick(self);
+            let mut state = self.get_next_state().unwrap().to_state();
+            state.tick(self);
             let result = self.get_last_result();
             self.handle_result(result.unwrap());
+            self.previous_state = Some(self.state.clone());
         }
 
         println!("Tvm state: {:?}", self.state);
@@ -153,6 +193,26 @@ impl Stateful for Tvm {
 
     fn handle_result(&mut self, result: StateResult) {
         println!("Handling result: {:?}", result);
+    }
+
+    // Hacky way of passing the program counter for a frame.
+    fn get_next_state(&mut self) -> Option<TvmState> {
+        match (&self.state, &self.previous_state) {
+            (TvmState::Eval(frame), Some(prev_state)) => {
+                if let TvmState::Eval(prev_frame) = prev_state {
+                    let pc = prev_frame.pc;
+                    let mut next_frame = frame.clone();
+                    next_frame.pc = pc;
+                    Some(TvmState::Eval(next_frame))
+                } else {
+                    Some(self.state.clone())
+                }
+            }
+            (state, _) => {
+                println!("No arms match.");
+                Some(state.clone())
+            }
+        }
     }
 }
 
@@ -186,31 +246,32 @@ pub mod states {
     impl State for Waiting {
         // Tick should do nothing.
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            Continue
+            Continue(0)
         }
     }
 
     impl State for Paused {
         // Tick should do nothing.
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            Continue
+            Continue(0)
         }
     }
 
     impl State for Call {
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
             tvm.do_call(self.callable.clone());
-            Continue
+            Continue(0)
         }
     }
 
     impl State for Eval {
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
             if tvm.should_continue() {
-                tvm.do_eval(&mut self.frame);
+                tvm.do_eval(&mut self.frame, 0);
                 self.pc = self.frame.pc;
+                tvm.state.update_eval(self.frame.clone(), self.pc); // This is a really dumb way of doing this.
             }
-            Exit
+            Continue(self.pc as i32)
         }
     }
 
@@ -225,7 +286,7 @@ pub mod states {
 
     impl State for Halted {
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            Continue
+            Continue(0)
         }
     }
 }

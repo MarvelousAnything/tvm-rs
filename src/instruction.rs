@@ -4,7 +4,7 @@ use std::rc::Rc;
 use crate::callable::Callable;
 use crate::frame::{Frame, FrameData};
 use crate::stack::StackHolder;
-use crate::state::{Stateful, StateResult};
+use crate::state::{Stateful, StateResult, TvmState};
 use crate::state::StateResult::Exit;
 use crate::tvm::Tvm;
 
@@ -217,11 +217,11 @@ impl Instruction {
 }
 
 pub trait Evaluator: Debug + Clone {
-    fn do_eval(&mut self, frame: &mut Frame);
+    fn do_eval(&mut self, frame: &mut Frame, pc: i32);
 }
 
 impl Evaluator for Tvm {
-    fn do_eval(&mut self, frame: &mut Frame) {
+    fn do_eval(&mut self, frame: &mut Frame, pc: i32) {
         if frame.pc >= frame.data.len() {
             self.last_result = Some(Exit);
             return;

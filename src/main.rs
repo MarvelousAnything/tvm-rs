@@ -19,10 +19,11 @@ fn main() {
     let mut tvm = Tvm::default();
     tvm.start();
     loop {
-        stdin().read_line(&mut s).expect("Did not enter a correct string");
-        if !s.is_empty() {
-            print!("Tick {}:\t\t", tvm.ticks);
-            tvm.tick();
-        }
+        // stdin().read_line(&mut s).expect("Did not enter a correct string");
+        // if !s.is_empty() {
+        //     print!("Tick {}:\t\t", tvm.ticks);
+        //
+        // }
+        tvm.tick();
     }
 }
