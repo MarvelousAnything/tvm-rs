@@ -1,5 +1,5 @@
 use crate::frame::Frame;
-use crate::state::{TvmState};
+use crate::state::{StateResult, TvmState};
 
 #[derive(Debug, Clone)]
 pub struct Tvm {
@@ -10,6 +10,7 @@ pub struct Tvm {
     pub state: TvmState,
     pub ticks: usize,
     pub previous_state: Option<TvmState>,
+    pub last_result: Option<StateResult>,
 }
 
 impl Default for Tvm {
@@ -22,6 +23,7 @@ impl Default for Tvm {
             state: TvmState::Waiting,
             ticks: 0,
             previous_state: None,
+            last_result: None,
         }
     }
 }
