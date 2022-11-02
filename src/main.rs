@@ -1,4 +1,4 @@
-use crate::state::Stateful;
+use crate::state::{Stateful, TvmState};
 use crate::tvm::Tvm;
 
 mod tvm;
@@ -18,7 +18,7 @@ fn main() {
     let _ = stdout().flush();
     let mut tvm = Tvm::default();
     tvm.start();
-    loop {
+    while !tvm.state.is_halted() {
         // stdin().read_line(&mut s).expect("Did not enter a correct string");
         // if !s.is_empty() {
         //     print!("Tick {}:\t\t", tvm.ticks);

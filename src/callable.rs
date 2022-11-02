@@ -1,7 +1,10 @@
+use std::borrow::Borrow;
 use std::fmt::Debug;
+use rand::Rng;
 use crate::function::Function;
 use crate::native::NativeFunction;
 use crate::stack::StackHolder;
+use crate::state::Stateful;
 use crate::tvm::Tvm;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,7 +40,28 @@ impl Caller for Tvm {
         match callable {
             Callable::Function(function) => {
                 println!("Calling function: {:?}", function);
-                self.push(0);
+                let frame = function.frame;
+                // expect that arguments have already been pushed to the stack
+                // push zero to the stack for the local data
+                for _ in 0..function.locals {
+                    self.push(0);
+                }
+                // push the frame pointer to the stack
+                self.push(self.frame_pointer as i32);
+                // set the frame pointer to the value of the stack pointer prior to pushing the frame pointer to the stack
+                self.frame_pointer = self.stack_pointer + 1;
+                // evaluate the function
+                self.frame_eval(frame);
+                // pop the return value from the top of the stack
+                let r = self.pop();
+                // copy the frame pointer to the stack pointer
+                self.stack_pointer = self.frame_pointer;
+                // copy the top of the stack into the frame pointer
+                self.frame_pointer = self.peek() as usize;
+                // Increment the stack pointer by the number of local variables and parameters of the function
+                self.stack_pointer += (function.locals + function.args) as usize;
+                // push the return value to the stack
+                self.push(r);
             },
             Callable::Native(native_function) => {
 
@@ -47,11 +71,80 @@ impl Caller for Tvm {
                         println!("stdout: {}", value);
                         self.push(0);
                     },
+                    NativeFunction::SPrint { .. } => {
+                        let addr = self.pop();
+                        println!("stdout: {}", self.a2s(addr as usize));
+                        self.push(0);
+                    },
+                    NativeFunction::IRead { .. } => {
+                        let prompt_addr = self.pop();
+                        let mut prompt = String::new();
+                        if prompt_addr == -1 {
+                            prompt = "Integer input: ".to_string();
+                        } else {
+                            prompt = self.a2s(prompt_addr as usize);
+                        }
+                        let mut input = String::new();
+                        print!("{}", prompt);
+                        std::io::stdin()
+                            .read_line(&mut input)
+                            .expect("Failed to read line");
+                        let arg = input.trim().parse::<i32>().expect("Failed to parse input");
+                        self.push(arg);
+                    },
+                    NativeFunction::SRead { .. } => {
+                        let prompt_addr = self.pop();
+                        let mut prompt = String::new();
+                        if prompt_addr == -1 {
+                            prompt = "String input: ".to_string();
+                        } else {
+                            prompt = self.a2s(prompt_addr as usize);
+                        }
+                        let mut input = String::new();
+                        print!("{}", prompt);
+                        std::io::stdin()
+                            .read_line(&mut input)
+                            .expect("Failed to read line");
+                        let arg = input.trim().parse::<i32>().expect("Failed to parse input");
+                        self.push(arg);
+                    },
+                    NativeFunction::NL { .. } => {
+                        println!();
+                        self.push(0);
+                    },
+                    NativeFunction::Random { .. } => {
+                        let n = self.pop();
+                        let r = rand::thread_rng().gen_range(0..n);
+                        self.push(r);
+                    },
+                    NativeFunction::Timer { .. } => {
+                        let id = self.pop();
+                        let time = self.pop();
+                        println!("Timer {} set to {}", id, time);
+                        self.push(0);
+                    },
+                    NativeFunction::StopTimer { .. } => {
+                        let id = self.pop();
+                        let time = self.pop();
+                        println!("Timer {} stopped at {}", id, time);
+                        self.push(0);
+                    },
                     NativeFunction::Alloc { .. } => {
                         let size = self.pop();
                         self.push(self.heap_size as i32);
                         self.heap_size += size as usize;
                         println!("Allocating {} bytes", size);
+                    },
+                    NativeFunction::Free { .. } => {
+                        let addr = self.pop();
+                        println!("Freeing {}", addr);
+                        self.push(0);
+                    },
+                    NativeFunction::I2S { .. } => {
+                        let arg = self.pop();
+                        let addr = self.pop();
+                        self.write_string(addr as usize, arg.to_string());
+                        self.push(0);
                     },
                     _ => println!("Calling native function: {:?}", native_function),
                 }

@@ -1,10 +1,12 @@
 use std::fmt::Debug;
-use std::ops::Deref;
-use std::rc::Rc;
+use enum_dispatch::enum_dispatch;
 use crate::callable::Callable;
 use crate::frame::Frame;
+use crate::stack::StackHolder;
+use crate::state::states::{Call, Eval, FrameEval, Halted, Paused, Waiting};
 use crate::tvm::Tvm;
 
+#[enum_dispatch(TvmState)]
 pub trait State : Debug {
     fn tick(&mut self, tvm: &mut Tvm) -> StateResult;
 }
@@ -18,64 +20,24 @@ pub enum StateResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[enum_dispatch]
 pub enum TvmState {
-    Waiting,
-    Paused,
-    Call(Callable),
-    Eval(Frame),
-    FrameEval(Frame),
-    Halted,
+    Waiting(Waiting),
+    Paused(Paused),
+    Call(Call),
+    Eval(Eval),
+    FrameEval(FrameEval),
+    Halted(Halted),
 }
 
 impl TvmState {
-    pub fn to_state(&self) -> Box<dyn State> {
-        match self {
-            TvmState::Waiting => Box::new(states::Waiting),
-            TvmState::Paused => Box::new(states::Paused),
-            TvmState::Call(callable) => Box::new(states::Call { callable: callable.clone() }),
-            TvmState::Eval(frame) => Box::new(states::Eval { frame: frame.clone(), pc: 0 }),
-            TvmState::FrameEval(frame) => Box::new(states::FrameEval { frame: frame.clone() }),
-            TvmState::Halted => Box::new(states::Halted),
-        }
-    }
-
-    pub fn update_eval(&mut self, frame: Frame, pc: usize) {
-        if let TvmState::Eval(ref mut prev_frame) = self {
-            prev_frame.data = frame.data;
-            prev_frame.pc = pc;
-        }
-    }
-
-    pub fn frame_eval(frame: Frame) -> Self {
-        TvmState::FrameEval(frame)
-    }
-
-    pub fn eval(frame: Frame) -> Self {
-        TvmState::Eval(frame)
-    }
-
-    pub fn call(callable: Callable) -> Self {
-        TvmState::Call(callable)
-    }
-
-    pub fn paused() -> Self {
-        TvmState::Paused
-    }
-
-    pub fn waiting() -> Self {
-        TvmState::Waiting
-    }
-
-    pub fn halted() -> Self {
-        TvmState::Halted
-    }
 
     pub fn is_waiting(&self) -> bool {
-        matches!(self, TvmState::Waiting)
+        matches!(self, TvmState::Waiting(_))
     }
 
     pub fn is_paused(&self) -> bool {
-        matches!(self, TvmState::Paused)
+        matches!(self, TvmState::Paused(_))
     }
 
     pub fn is_call(&self) -> bool {
@@ -91,7 +53,18 @@ impl TvmState {
     }
 
     pub fn is_halted(&self) -> bool {
-        matches!(self, TvmState::Halted)
+        matches!(self, TvmState::Halted(_))
+    }
+
+    pub fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
+        match self {
+            TvmState::Waiting(ref mut state) => state.tick(tvm),
+            TvmState::Paused(ref mut state) => state.tick(tvm),
+            TvmState::Call(ref mut state) => state.tick(tvm),
+            TvmState::Eval(ref mut state) => state.tick(tvm),
+            TvmState::FrameEval(ref mut state) => state.tick(tvm),
+            TvmState::Halted(ref mut state) => state.tick(tvm),
+        }
     }
 }
 
@@ -109,22 +82,23 @@ pub trait Stateful : Debug {
     fn handle_result(&mut self, result: StateResult);
 
     fn call(&mut self, callable: Callable) {
-        self.set_state(TvmState::call(callable));
+        self.set_state(Call { callable }.into());
     }
 
     fn eval(&mut self, frame: Frame) {
-        self.set_state(TvmState::Eval(frame));
+        let pc = &frame.pc.clone();
+        self.set_state(Eval { frame, pc: *pc }.into());
     }
 
     fn frame_eval(&mut self, frame: Frame) {
-        self.set_state(TvmState::FrameEval(frame));
+        self.set_state(FrameEval { frame }.into());
     }
 
     fn should_continue(&self) -> bool {
-        !self.get_state().is_halted()
+        !(self.get_state().is_halted()
             || matches!(self.get_last_result(), Some(StateResult::Exit))
             || matches!(self.get_last_result(), Some(StateResult::Break))
-            || matches!(self.get_last_result(), Some(StateResult::Return(_)))
+            || matches!(self.get_last_result(), Some(StateResult::Return(_))))
     }
 
     fn get_next_state(&mut self) -> Option<TvmState>;
@@ -159,7 +133,7 @@ impl Stateful for Tvm {
 
     fn pause(&mut self) {
         if !self.is_paused() {
-            self.set_state(TvmState::Paused);
+            self.set_state(Paused {}.into());
         }
     }
 
@@ -171,13 +145,13 @@ impl Stateful for Tvm {
 
     fn tick(&mut self) {
         // Do nothing if the tvm is paused
-        if !self.is_paused() {
+        if !self.is_paused() && self.should_continue() {
             self.increment_ticks();
-            let mut state = self.get_next_state().unwrap().to_state();
-            state.tick(self);
+            let mut temp_state = self.get_next_state().unwrap();
+            temp_state.tick(self);
             let result = self.get_last_result();
             self.handle_result(result.unwrap());
-            self.previous_state = Some(self.state.clone());
+            self.previous_state = Some(temp_state);
         }
 
         println!("Tvm state: {:?}", self.state);
@@ -188,25 +162,30 @@ impl Stateful for Tvm {
     }
 
     fn is_paused(&self) -> bool {
-        matches!(self.state, TvmState::Paused)
+        matches!(self.state, TvmState::Paused(_))
     }
 
     fn handle_result(&mut self, result: StateResult) {
         println!("Handling result: {:?}", result);
+        if let StateResult::Return(res) = result {
+            self.set_state(self.previous_state().unwrap());
+            self.push(res) // I have no clue if this is correct.
+        }
+        if let StateResult::Break = result {
+            self.set_state(self.previous_state().unwrap());
+        }
+        if let StateResult::Exit = result {
+            self.set_state(Halted {}.into());
+        }
     }
 
     // Hacky way of passing the program counter for a frame.
     fn get_next_state(&mut self) -> Option<TvmState> {
         match (&self.state, &self.previous_state) {
-            (TvmState::Eval(frame), Some(prev_state)) => {
-                if let TvmState::Eval(prev_frame) = prev_state {
-                    let pc = prev_frame.pc;
-                    let mut next_frame = frame.clone();
-                    next_frame.pc = pc;
-                    Some(TvmState::Eval(next_frame))
-                } else {
-                    Some(self.state.clone())
-                }
+            (TvmState::Eval(Eval { frame, pc: _pc }), Some(TvmState::Eval(Eval { frame: prev_frame, pc: prev_pc}))) => {
+                let mut next_frame = frame.clone();
+                next_frame.pc = prev_frame.pc;
+                Some(Eval { frame: next_frame, pc: *prev_pc }.into())
             }
             (state, _) => {
                 println!("No arms match.");
@@ -223,24 +202,24 @@ pub mod states {
     use crate::state::StateResult::{Continue, Exit};
     use super::*;
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Waiting;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Paused;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Call {
         pub callable: Callable,
     }
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Eval {
         pub frame: Frame,
         pub pc: usize,
     }
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct FrameEval {
         pub frame: Frame,
     }
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Halted;
 
     impl State for Waiting {
@@ -260,6 +239,7 @@ pub mod states {
     impl State for Call {
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
             tvm.do_call(self.callable.clone());
+            tvm.set_state(tvm.previous_state.clone().unwrap()); // Maybe replace this with a calling frame of some kind?
             Continue(0)
         }
     }
@@ -269,9 +249,8 @@ pub mod states {
             if tvm.should_continue() {
                 tvm.do_eval(&mut self.frame, 0);
                 self.pc = self.frame.pc;
-                tvm.state.update_eval(self.frame.clone(), self.pc); // This is a really dumb way of doing this.
             }
-            Continue(self.pc as i32)
+            Exit
         }
     }
 

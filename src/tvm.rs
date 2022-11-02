@@ -1,5 +1,6 @@
 use crate::frame::Frame;
 use crate::instruction::Instruction;
+use crate::state;
 use crate::state::{Stateful, StateResult, TvmState};
 use crate::state::StateResult::Continue;
 
@@ -23,7 +24,7 @@ impl Default for Tvm {
             stack_pointer: 65535,
             frame_pointer: 65535,
             heap_size: 0,
-            state: TvmState::Waiting,
+            state: TvmState::Waiting(state::states::Waiting),
             ticks: 0,
             previous_state: None,
             next_state: None,
@@ -40,20 +41,41 @@ impl Tvm {
             .id(0)
             .name("main".to_string())
             .instruction(Instruction::get_instruction(1), vec![])
-            .primitive(0)
+            .primitive(3)
             .callable(-101, vec![])
+            .instruction(Instruction::get_instruction(1), vec![])
+            .primitive(10)
             .instruction(Instruction::get_instruction(8), vec![])
             .primitive(-109)
-            .primitive(10)
             .build();
 
         self.frame_eval(frame);
+    }
+
+    pub fn a2s(&mut self, address: usize) -> String {
+        let mut s = String::new();
+        let mut i = address;
+        while self.memory[i] != 0 {
+            s.push(self.memory[address] as u8 as char);
+            i += 1;
+        }
+        s
+    }
+
+    pub fn write_string(&mut self, address: usize, s: String) {
+        let mut i = address;
+        for c in s.chars() {
+            self.memory[i] = c as i32;
+            i += 1;
+        }
+        self.memory[i] = 0;
     }
 }
 
 #[cfg(test)]
 mod test {
     use crate::state::Stateful;
+    use crate::state::states::Waiting;
     use super::*;
 
     #[test]
@@ -63,7 +85,7 @@ mod test {
         assert_eq!(tvm.stack_pointer, 65535);
         assert_eq!(tvm.frame_pointer, 65535);
         assert_eq!(tvm.heap_size, 0);
-        assert_eq!(tvm.state, TvmState::Waiting);
+        assert_eq!(tvm.state, TvmState::Waiting(Waiting));
         assert_eq!(tvm.ticks, 0);
         assert_eq!(tvm.previous_state, None);
     }

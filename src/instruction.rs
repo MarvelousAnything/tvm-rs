@@ -218,6 +218,7 @@ impl Instruction {
 
 pub trait Evaluator: Debug + Clone {
     fn do_eval(&mut self, frame: &mut Frame, pc: i32);
+    fn get_next_frame(frame_data: &mut FrameData) -> Option<Frame>;
 }
 
 impl Evaluator for Tvm {
@@ -244,46 +245,157 @@ impl Evaluator for Tvm {
                         let index = self.pop();
                         self.push(self.memory[index as usize]);
                     }
-                    Instruction::Store { .. } => {}
-                    Instruction::IF { .. } => {}
-                    Instruction::Loop { .. } => {}
-                    Instruction::Break { .. } => {}
-                    Instruction::Return { .. } => {}
+                    Instruction::Store { .. } => {
+                        let value = self.pop();
+                        let index = self.pop();
+                        self.memory[index as usize] = value;
+                    }
+                    Instruction::IF { .. } => {
+                        let condition = self.pop();
+                        let next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc]).unwrap();
+                        if condition != 0 {
+                            self.frame_eval(next_frame);
+                            frame.pc += 2;
+                        } else {
+                            frame.pc += 1;
+                            self.frame_eval(next_frame);
+                            frame.pc += 1;
+                        }
+                        match self.last_result {
+                            Some(StateResult::Break) => (),
+                            Some(StateResult::Return(_)) => (),
+                            _ => panic!("IF instruction did not terminate."),
+                        }
+                    }
+                    Instruction::Loop { .. } => {
+                        loop {
+                            let next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc]).unwrap();
+                            self.frame_eval(next_frame);
+                            match self.last_result {
+                                Some(StateResult::Break) => (),
+                                Some(StateResult::Return(_)) => (),
+                                _ => panic!("Loop instruction did not terminate."),
+                            }
+                        }
+                    }
+                    Instruction::Break { .. } => {
+                        let x = self.pop();
+                        if x != 0 {
+                            self.last_result = Some(StateResult::Break);
+                        }
+                    }
+                    Instruction::Return { .. } => {
+                        self.last_result = Some(StateResult::Return(0));
+                    }
                     Instruction::Call { .. } => {
                         let id = &frame.data[frame.pc].get_id();
                         let callable = Callable::get_callable(*id);
                         self.call(callable);
                         frame.pc += 1;
                     }
-                    Instruction::FPPlus { .. } => {}
-                    Instruction::Add { .. } => {}
-                    Instruction::Sub { .. } => {}
-                    Instruction::Mul { .. } => {}
-                    Instruction::Div { .. } => {}
-                    Instruction::Mod { .. } => {}
-                    Instruction::Not { .. } => {}
-                    Instruction::And { .. } => {}
-                    Instruction::OR { .. } => {}
-                    Instruction::Xor { .. } => {}
-                    Instruction::EQ { .. } => {}
-                    Instruction::Neq { .. } => {}
-                    Instruction::LT { .. } => {}
-                    Instruction::Leq { .. } => {}
-                    Instruction::GT { .. } => {}
-                    Instruction::Geq { .. } => {}
-                    Instruction::Pop { .. } => {}
-                    Instruction::LShift { .. } => {}
-                    Instruction::RShift { .. } => {}
-                    Instruction::Unknown(_) => {}
+                    Instruction::FPPlus { .. } => {
+                        let x = self.pop();
+                        self.push(x + self.frame_pointer as i32);
+                    }
+                    Instruction::Add { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push(x + y);
+                    }
+                    Instruction::Sub { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push(x - y);
+                    }
+                    Instruction::Mul { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push(x * y);
+                    }
+                    Instruction::Div { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push(x / y);
+                    }
+                    Instruction::Mod { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push(x % y);
+                    }
+                    Instruction::Not { .. } => {
+                        let x = self.pop();
+                        self.push(!x);
+                    }
+                    Instruction::And { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push(x & y);
+                    }
+                    Instruction::OR { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push(x | y);
+                    }
+                    Instruction::Xor { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push(x ^ y);
+                    }
+                    Instruction::EQ { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push((x == y) as i32);
+                    }
+                    Instruction::Neq { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push((x != y) as i32);
+                    }
+                    Instruction::LT { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push((x < y) as i32);
+                    }
+                    Instruction::Leq { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push((x <= y) as i32);
+                    }
+                    Instruction::GT { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push((x > y) as i32);
+                    }
+                    Instruction::Geq { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push((x >= y) as i32);
+                    }
+                    Instruction::Pop { .. } => {
+                        self.pop();
+                    }
+                    Instruction::LShift { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push(x << y);
+                    }
+                    Instruction::RShift { .. } => {
+                        let y = self.pop();
+                        let x = self.pop();
+                        self.push(x >> y);
+                    }
+                    Instruction::Unknown(op) => panic!("Unknown instruction: {}", op),
                 }
             },
-            FrameData::Callable(callable, ..) => {
-                println!("Evaluating callable: {:?}", callable);
-                self.call(callable.clone())
-            },
-            FrameData::Primitive(primitive) => {
-                println!("Primitive: {:?}", primitive);
-            }
+            FrameData::Callable(callable, ..) => panic!("Cannot evaluate callable: {:?}", callable),
+            FrameData::Primitive(primitive) => panic!("Cannot evaluate primitive: {:?}", primitive),
+        }
+    }
+    fn get_next_frame(frame_data: &mut FrameData) -> Option<Frame> {
+        if let FrameData::Frame(frame) = frame_data {
+            Some(frame.clone())
+        } else {
+            None
         }
     }
 }
