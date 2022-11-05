@@ -7,6 +7,7 @@ pub trait StackHolder {
     fn pop(&mut self) -> i32;
     fn push(&mut self, value: i32);
     fn peek(&self) -> i32;
+    fn get_active_stack(&self) -> &[i32];
 }
 
 impl StackHolder for Tvm {
@@ -37,10 +38,14 @@ impl StackHolder for Tvm {
     fn peek(&self) -> i32 {
         self.memory[self.stack_pointer + 1]
     }
+
+    fn get_active_stack(&self) -> &[i32] {
+        &self.memory[self.stack_pointer + 1..]
+    }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
@@ -100,6 +105,10 @@ mod test {
         let sp = tvm.get_stack_pointer();
         assert_eq!(tvm.peek(), 3, "peek() should return the top of the stack");
         assert_eq!(tvm.peek(), tvm.peek(), "peek() should be equal to itself");
-        assert_eq!(tvm.get_stack_pointer(), sp, "stack pointer should not change"); // stack pointer should not change
+        assert_eq!(
+            tvm.get_stack_pointer(),
+            sp,
+            "stack pointer should not change"
+        ); // stack pointer should not change
     }
 }

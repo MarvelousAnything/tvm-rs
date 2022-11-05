@@ -1,13 +1,13 @@
-use std::fmt::Debug;
-use enum_dispatch::enum_dispatch;
 use crate::callable::Callable;
 use crate::frame::Frame;
 use crate::stack::StackHolder;
-use crate::state::states::{Call, Eval, FrameEval, Halted, Paused, Waiting};
+use crate::state::states::{Call, Eval, FrameEval, Halted, Loop, Paused, Waiting};
 use crate::tvm::Tvm;
+use enum_dispatch::enum_dispatch;
+use std::fmt::{Debug, Display, Formatter};
 
 #[enum_dispatch(TvmState)]
-pub trait State : Debug {
+pub trait State: Debug + Display {
     fn tick(&mut self, tvm: &mut Tvm) -> StateResult;
 }
 
@@ -19,6 +19,17 @@ pub enum StateResult {
     Exit,
 }
 
+impl Display for StateResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StateResult::Return(value) => write!(f, "Return({})", value),
+            StateResult::Break => write!(f, "Break"),
+            StateResult::Continue(value) => write!(f, "Continue({})", value),
+            StateResult::Exit => write!(f, "Exit"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[enum_dispatch]
 pub enum TvmState {
@@ -28,10 +39,10 @@ pub enum TvmState {
     Eval(Eval),
     FrameEval(FrameEval),
     Halted(Halted),
+    Loop(Loop),
 }
 
 impl TvmState {
-
     pub fn is_waiting(&self) -> bool {
         matches!(self, TvmState::Waiting(_))
     }
@@ -64,11 +75,28 @@ impl TvmState {
             TvmState::Eval(ref mut state) => state.tick(tvm),
             TvmState::FrameEval(ref mut state) => state.tick(tvm),
             TvmState::Halted(ref mut state) => state.tick(tvm),
+            TvmState::Loop(ref mut state) => state.tick(tvm),
         }
     }
 }
 
-pub trait Stateful : Debug {
+impl Display for TvmState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TvmState::Waiting(state) => write!(f, "{}", state),
+            TvmState::Paused(state) => write!(f, "{}", state),
+            TvmState::Call(state) => write!(f, "{} {}", state, state.callable),
+            TvmState::Eval(state) => write!(f, "{} {} {}", state, state.frame.name, state.frame.pc),
+            TvmState::FrameEval(state) => {
+                write!(f, "{} {} {}", state, state.frame.name, state.frame.pc)
+            }
+            TvmState::Halted(state) => write!(f, "{}", state),
+            TvmState::Loop(state) => write!(f, "{}", state),
+        }
+    }
+}
+
+pub trait Stateful: Debug {
     fn get_state(&self) -> TvmState;
     fn set_state(&mut self, state: TvmState);
     fn get_ticks(&self) -> usize;
@@ -102,6 +130,14 @@ pub trait Stateful : Debug {
     }
 
     fn get_next_state(&mut self) -> Option<TvmState>;
+
+    fn get_current_frame(&self) -> Option<Frame> {
+        match self.get_state() {
+            TvmState::Eval(state) => Some(state.frame),
+            TvmState::FrameEval(state) => Some(state.frame),
+            _ => None,
+        }
+    }
 }
 
 impl Stateful for Tvm {
@@ -110,7 +146,7 @@ impl Stateful for Tvm {
     }
 
     fn set_state(&mut self, state: TvmState) {
-        println!("Setting state to: {:?}", state);
+        println!("Setting state to: {}", state);
         self.previous_state = Some(self.state.clone());
         self.state = state;
     }
@@ -148,13 +184,12 @@ impl Stateful for Tvm {
         if !self.is_paused() && self.should_continue() {
             self.increment_ticks();
             let mut temp_state = self.get_next_state().unwrap();
+            self.state = temp_state.clone();
             temp_state.tick(self);
             let result = self.get_last_result();
             self.handle_result(result.unwrap());
             self.previous_state = Some(temp_state);
         }
-
-        println!("Tvm state: {:?}", self.state);
     }
 
     fn get_last_result(&self) -> Option<StateResult> {
@@ -168,39 +203,58 @@ impl Stateful for Tvm {
     fn handle_result(&mut self, result: StateResult) {
         println!("Handling result: {:?}", result);
         if let StateResult::Return(res) = result {
-            self.set_state(self.previous_state().unwrap());
-            self.push(res) // I have no clue if this is correct.
+            self.next_state = self.previous_state();
+            self.push(res); // I have no clue if this is correct.
+            self.last_result = Some(StateResult::Continue(0));
         }
         if let StateResult::Break = result {
-            self.set_state(self.previous_state().unwrap());
+            self.next_state = self.previous_state();
+            self.last_result = Some(StateResult::Continue(0));
         }
         if let StateResult::Exit = result {
-            self.set_state(Halted {}.into());
+            self.next_state = Some(Halted {}.into());
         }
     }
 
     // Hacky way of passing the program counter for a frame.
     fn get_next_state(&mut self) -> Option<TvmState> {
-        match (&self.state, &self.previous_state) {
-            (TvmState::Eval(Eval { frame, pc: _pc }), Some(TvmState::Eval(Eval { frame: prev_frame, pc: prev_pc}))) => {
-                let mut next_frame = frame.clone();
-                next_frame.pc = prev_frame.pc;
-                Some(Eval { frame: next_frame, pc: *prev_pc }.into())
-            }
-            (state, _) => {
-                println!("No arms match.");
-                Some(state.clone())
-            }
+        let next = self.next_state.clone();
+        self.next_state = None;
+        match next {
+            Some(ref state) => Some(state.clone()),
+            None => match (&self.state, &self.previous_state) {
+                (
+                    TvmState::Eval(Eval { frame, pc: _pc }),
+                    Some(TvmState::Eval(Eval {
+                        frame: prev_frame,
+                        pc: prev_pc,
+                    })),
+                ) => {
+                    let mut next_frame = frame.clone();
+                    next_frame.pc = prev_frame.pc;
+                    Some(
+                        Eval {
+                            frame: next_frame,
+                            pc: *prev_pc,
+                        }
+                        .into(),
+                    )
+                }
+                (state, _) => {
+                    println!("No arms match.");
+                    Some(state.clone())
+                }
+            },
         }
     }
 }
 
 pub mod states {
+    use super::*;
     use crate::callable::Caller;
     use crate::frame::FrameEvaluator;
     use crate::instruction::Evaluator;
     use crate::state::StateResult::{Continue, Exit};
-    use super::*;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Waiting;
@@ -222,10 +276,28 @@ pub mod states {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Halted;
 
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Loop {
+        pub frame: Frame,
+        pub loop_frame: Frame,
+    }
+
+    impl Display for Waiting {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Waiting")
+        }
+    }
+
     impl State for Waiting {
         // Tick should do nothing.
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
             Continue(0)
+        }
+    }
+
+    impl Display for Paused {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Paused")
         }
     }
 
@@ -236,11 +308,22 @@ pub mod states {
         }
     }
 
+    impl Display for Call {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Call")
+        }
+    }
+
     impl State for Call {
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
             tvm.do_call(self.callable.clone());
-            tvm.set_state(tvm.previous_state.clone().unwrap()); // Maybe replace this with a calling frame of some kind?
             Continue(0)
+        }
+    }
+
+    impl Display for Eval {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Eval")
         }
     }
 
@@ -254,6 +337,12 @@ pub mod states {
         }
     }
 
+    impl Display for FrameEval {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "FrameEval")
+        }
+    }
+
     impl State for FrameEval {
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
             if tvm.should_continue() {
@@ -263,9 +352,31 @@ pub mod states {
         }
     }
 
+    impl Display for Halted {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Halted")
+        }
+    }
+
     impl State for Halted {
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            Continue(0)
+            Exit
+        }
+    }
+
+    impl Display for Loop {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Loop")
+        }
+    }
+
+    impl State for Loop {
+        // Do frame eval if the loop should not return.
+        fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
+            if let Some(StateResult::Break) = tvm.get_last_result(){
+                tvm.frame_eval(self.frame.clone());
+            }
+            Exit
         }
     }
 }

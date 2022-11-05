@@ -1,8 +1,11 @@
+use crate::callable::Caller;
 use crate::frame::Frame;
-use crate::instruction::Instruction;
+use crate::function::Function;
+use crate::program::Program;
 use crate::state;
-use crate::state::{Stateful, StateResult, TvmState};
 use crate::state::StateResult::Continue;
+use crate::state::{StateResult, Stateful, TvmState};
+use std::fmt::Display;
 
 #[derive(Debug, Clone)]
 pub struct Tvm {
@@ -15,6 +18,7 @@ pub struct Tvm {
     pub previous_state: Option<TvmState>,
     pub next_state: Option<TvmState>,
     pub last_result: Option<StateResult>,
+    pub program: Program,
 }
 
 impl Default for Tvm {
@@ -29,34 +33,54 @@ impl Default for Tvm {
             previous_state: None,
             next_state: None,
             last_result: Some(Continue(0)),
+            program: Program::default(),
         }
     }
 }
 
+impl Display for Tvm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Tvm:")?;
+        // write active memory
+        writeln!(f, "  Memory: ")?;
+        writeln!(f, "    Heap: ")?;
+        for i in 0..self.heap_size {
+            writeln!(f, "    {}\t{}", i, self.memory[i])?;
+        }
+        writeln!(f, "    Stack: ")?;
+        for i in self.stack_pointer..65536 {
+            writeln!(f, "    {}\t{}", i, self.memory[i])?;
+        }
+        writeln!(f, "  Stack Pointer: {}", self.stack_pointer)?;
+        writeln!(f, "  Frame Pointer: {}", self.frame_pointer)?;
+        writeln!(f, "  Heap Size: {}", self.heap_size)?;
+        writeln!(f, "  State: {}", self.state)?;
+        writeln!(f, "  Ticks: {}", self.ticks)?;
+        writeln!(f, "  Previous State: {:?}", self.previous_state)?;
+        writeln!(f, "  Next State: {:?}", self.next_state)?;
+        writeln!(f, "  Last Result: {:?}", self.last_result)?;
+        Ok(())
+    }
+}
+
 impl Tvm {
-
     pub fn start(&mut self) {
-        let builder = Frame::builder();
-        let frame = builder
-            .id(0)
-            .name("main".to_string())
-            .instruction(Instruction::get_instruction(1), vec![])
-            .primitive(3)
-            .callable(-101, vec![])
-            .instruction(Instruction::get_instruction(1), vec![])
-            .primitive(10)
-            .instruction(Instruction::get_instruction(8), vec![])
-            .primitive(-109)
-            .build();
+        self.call(self.get_callable(self.program.entry_point as i32));
+    }
 
-        self.frame_eval(frame);
+    pub fn load(&mut self, program: Program) {
+        self.program = program;
+        self.heap_size = self.program.heap_size as usize;
+        for (location, value) in &self.program.heap {
+            self.memory[*location] = *value;
+        }
     }
 
     pub fn a2s(&mut self, address: usize) -> String {
         let mut s = String::new();
         let mut i = address;
         while self.memory[i] != 0 {
-            s.push(self.memory[address] as u8 as char);
+            s.push(self.memory[i] as u8 as char);
             i += 1;
         }
         s
@@ -70,13 +94,53 @@ impl Tvm {
         }
         self.memory[i] = 0;
     }
+
+    pub fn get_active_memory(&self) -> Vec<(usize, i32)> {
+        let mut memory = Vec::new();
+        for i in 0..self.heap_size {
+            memory.push((i, self.memory[i]));
+        }
+        for i in self.stack_pointer..65536 {
+            memory.push((i, self.memory[i]));
+        }
+        memory.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        memory
+    }
+
+    pub fn get_active_memory_string(&self) -> String {
+        let mut s = String::new();
+        for (i, value) in self.get_active_memory() {
+            s.push_str(&format!("{}: {}\n", i, value));
+        }
+        s
+    }
+
+    pub fn get_function(&self, id: usize) -> Function {
+        self.program.functions[id].clone()
+    }
 }
 
 #[cfg(test)]
-mod test {
-    use crate::state::Stateful;
-    use crate::state::states::Waiting;
+mod tests {
     use super::*;
+    use crate::callable;
+    use crate::state::states::Waiting;
+    use crate::state::Stateful;
+
+    fn get_test_program() -> Program {
+        Program::builder()
+            .entry_point(0)
+            .heap(vec![
+                (0, 'h' as i32),
+                (1, 'e' as i32),
+                (2, 'l' as i32),
+                (3, 'l' as i32),
+                (4, 'o' as i32),
+                (5, 0),
+            ])
+            .function(Function::builder().id(0).name("init".to_string()).build())
+            .build()
+    }
 
     #[test]
     fn test_default() {
@@ -88,6 +152,91 @@ mod test {
         assert_eq!(tvm.state, TvmState::Waiting(Waiting));
         assert_eq!(tvm.ticks, 0);
         assert_eq!(tvm.previous_state, None);
+    }
+
+    #[test]
+    fn test_load() {
+        let mut tvm = Tvm::default();
+        let program = get_test_program();
+        tvm.load(program);
+        assert_eq!(tvm.heap_size, 6);
+        assert_eq!(tvm.memory[0], 'h' as i32);
+        assert_eq!(tvm.memory[1], 'e' as i32);
+        assert_eq!(tvm.memory[2], 'l' as i32);
+        assert_eq!(tvm.memory[3], 'l' as i32);
+        assert_eq!(tvm.memory[4], 'o' as i32);
+        assert_eq!(tvm.memory[5], 0);
+    }
+
+    #[test]
+    fn test_start() {
+        let mut tvm = Tvm::default();
+        let program = get_test_program();
+        tvm.load(program);
+        tvm.start();
+        let state = tvm.state;
+        assert!(state.is_call());
+        assert!(
+            matches!(state, TvmState::Call(state::states::Call { callable: callable::Callable::Function(function), .. }) if function.id == 0 && function.name == "init")
+        );
+    }
+
+    #[test]
+    fn test_a2s() {
+        let mut tvm = Tvm::default();
+        let program = get_test_program();
+        tvm.load(program);
+        assert_eq!(tvm.a2s(0), "hello");
+    }
+
+    #[test]
+    fn test_write_string() {
+        let mut tvm = Tvm::default();
+        let program = get_test_program();
+        tvm.load(program);
+        assert_eq!(tvm.a2s(0), "hello");
+        tvm.write_string(0, "world".to_string());
+        assert_eq!(tvm.a2s(0), "world");
+    }
+
+    #[test]
+    fn test_get_active_memory() {
+        let mut tvm = Tvm::default();
+        let program = get_test_program();
+        tvm.load(program);
+        assert_eq!(
+            tvm.get_active_memory(),
+            vec![
+                (0, 'h' as i32),
+                (1, 'e' as i32),
+                (2, 'l' as i32),
+                (3, 'l' as i32),
+                (4, 'o' as i32),
+                (5, 0),
+                (65535, 0)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_get_function() {
+        let mut tvm = Tvm::default();
+        let program = get_test_program();
+        tvm.load(program);
+        let function = tvm.get_function(0);
+        assert_eq!(function.id, 0);
+        assert_eq!(function.name, "init");
+    }
+
+    #[test]
+    fn test_get_active_memory_string() {
+        let mut tvm = Tvm::default();
+        let program = get_test_program();
+        tvm.load(program);
+        assert_eq!(
+            tvm.get_active_memory_string(),
+            "0: 104\n1: 101\n2: 108\n3: 108\n4: 111\n5: 0\n65535: 0\n"
+        );
     }
 
     #[test]

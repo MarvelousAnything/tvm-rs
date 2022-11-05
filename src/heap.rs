@@ -60,6 +60,6 @@ mod test {
         assert_eq!(address, 0);
         assert_eq!(tvm.get_heap(), &[0, 0, 0]);
         tvm.deallocate(address);
-        assert_eq!(tvm.get_heap(), &[]);
+        assert!(tvm.get_heap().is_empty());
     }
 }

@@ -317,7 +317,7 @@ function eval(l, pc) {
             while(1) {
                 r = leval(l[pc])
                 if(r == -2)
-                    break // does not exit the 
+                    break // essentially just returns pc instead of -3. Does not exit the frame.
                 else if(r == -3)
                     return -3
             }

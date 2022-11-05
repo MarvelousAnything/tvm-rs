@@ -1,5 +1,7 @@
+use std::fmt::{Display, Formatter};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum  NativeFunction {
+pub enum NativeFunction {
     IPrint { id: i32, name: String, args: u32 },
     SPrint { id: i32, name: String, args: u32 },
     IRead { id: i32, name: String, args: u32 },
@@ -12,6 +14,12 @@ pub enum  NativeFunction {
     Free { id: i32, name: String, args: u32 },
     I2S { id: i32, name: String, args: u32 },
     Unknown(i32),
+}
+
+impl Display for NativeFunction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
 }
 
 impl NativeFunction {
@@ -75,8 +83,8 @@ impl NativeFunction {
             n => NativeFunction::Unknown(n),
         }
     }
-    
-    pub fn get_id(&self) -> i32 {
+
+    pub fn id(&self) -> i32 {
         match self {
             NativeFunction::IPrint { id, .. } => *id,
             NativeFunction::SPrint { id, .. } => *id,
@@ -90,6 +98,23 @@ impl NativeFunction {
             NativeFunction::Free { id, .. } => *id,
             NativeFunction::I2S { id, .. } => *id,
             NativeFunction::Unknown(n) => *n,
+        }
+    }
+
+    pub fn name(&self) -> String {
+        match self {
+            NativeFunction::IPrint { name, .. } => name.clone(),
+            NativeFunction::SPrint { name, .. } => name.clone(),
+            NativeFunction::IRead { name, .. } => name.clone(),
+            NativeFunction::SRead { name, .. } => name.clone(),
+            NativeFunction::NL { name, .. } => name.clone(),
+            NativeFunction::Random { name, .. } => name.clone(),
+            NativeFunction::Timer { name, .. } => name.clone(),
+            NativeFunction::StopTimer { name, .. } => name.clone(),
+            NativeFunction::Alloc { name, .. } => name.clone(),
+            NativeFunction::Free { name, .. } => name.clone(),
+            NativeFunction::I2S { name, .. } => name.clone(),
+            NativeFunction::Unknown(n) => format!("Unknown({})", n),
         }
     }
 }
