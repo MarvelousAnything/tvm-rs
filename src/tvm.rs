@@ -1,5 +1,4 @@
 use crate::callable::Caller;
-use crate::frame::Frame;
 use crate::function::Function;
 use crate::program::Program;
 use crate::state;
@@ -18,6 +17,7 @@ pub struct Tvm {
     pub previous_state: Option<TvmState>,
     pub next_state: Option<TvmState>,
     pub last_result: Option<StateResult>,
+    pub stdout: String,
     pub program: Program,
 }
 
@@ -33,6 +33,7 @@ impl Default for Tvm {
             previous_state: None,
             next_state: None,
             last_result: Some(Continue(0)),
+            stdout: String::new(),
             program: Program::default(),
         }
     }

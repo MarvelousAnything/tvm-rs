@@ -362,12 +362,12 @@ impl Instruction {
 }
 
 pub trait Evaluator: Debug + Clone {
-    fn do_eval(&mut self, frame: &mut Frame, pc: i32);
+    fn do_eval(&mut self, frame: &mut Frame, in_loop: bool);
     fn get_next_frame(frame_data: &mut FrameData) -> Option<Frame>;
 }
 
 impl Evaluator for Tvm {
-    fn do_eval(&mut self, frame: &mut Frame, pc: i32) {
+    fn do_eval(&mut self, frame: &mut Frame, in_loop: bool) {
         if frame.pc >= frame.data.len() {
             self.last_result = Some(Exit);
             return;
@@ -375,7 +375,7 @@ impl Evaluator for Tvm {
         let data = &frame.data.get(frame.pc).unwrap();
         frame.pc += 1;
         match data {
-            FrameData::Frame(frame) => self.frame_eval(frame.clone()),
+            FrameData::Frame(frame) => self.frame_eval(frame.clone(), in_loop),
             FrameData::Instruction(instruction, ..) => {
                 println!("Evaluating instruction: {:?}", instruction);
                 match instruction {
@@ -398,11 +398,11 @@ impl Evaluator for Tvm {
                         let next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc])
                             .expect("could not get next frame");
                         if condition != 0 {
-                            self.frame_eval(next_frame);
+                            self.frame_eval(next_frame, in_loop);
                             frame.pc += 2;
                         } else {
                             frame.pc += 1;
-                            self.frame_eval(next_frame);
+                            self.frame_eval(next_frame, in_loop);
                             frame.pc += 1;
                         }
                         match self.last_result {
@@ -413,9 +413,11 @@ impl Evaluator for Tvm {
                     }
                     // Evaluate the next frame until break or return is called.
                     Instruction::Loop { .. } => {
-                        let next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc])
+                        let mut next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc])
                             .expect("could not get next frame for loop");
                         let mut loop_frame = frame.clone();
+                        next_frame.name = "loop-".to_string();
+                        next_frame.name.push_str(&loop_frame.name);
                         loop_frame.pc -= 1;
                         self.set_state(
                             states::Loop {

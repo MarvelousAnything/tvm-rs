@@ -24,9 +24,10 @@ impl StackHolder for Tvm {
     }
 
     fn pop(&mut self) -> i32 {
-        println!("Popping from stack");
         self.stack_pointer += 1;
-        self.memory[self.stack_pointer]
+        let popped = self.memory[self.stack_pointer];
+        println!("Popping {} from stack", popped);
+        popped
     }
 
     fn push(&mut self, value: i32) {
@@ -36,7 +37,7 @@ impl StackHolder for Tvm {
     }
 
     fn peek(&self) -> i32 {
-        self.memory[self.stack_pointer + 1]
+        self.memory[self.stack_pointer]
     }
 
     fn get_active_stack(&self) -> &[i32] {

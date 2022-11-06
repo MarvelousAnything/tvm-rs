@@ -34,10 +34,16 @@ fn main() {
             if let TvmState::Eval(eval) = &tvm.state {
                 println!("{}", eval.frame);
             }
+            if let TvmState::Loop(loop_) = &tvm.state {
+                println!("Frame: {}", loop_.frame);
+                println!("Loop frame: {}", loop_.loop_frame);
+            }
         } else if s.trim() == "? memory" {
             println!("{}", tvm.get_active_memory_string());
         } else if s.trim() == "? program" {
             println!("{}", tvm.program);
+        } else if s.trim() == "? stdout" {
+            println!("{}", tvm.stdout);
         } else if s.trim() == "? all" {
             println!("{}", tvm);
         } else if !s.is_empty() {

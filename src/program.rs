@@ -74,6 +74,7 @@ impl Program {
                 data: frame_data,
                 pc: 0,
                 parent_frame: None,
+                parent_state: None,
                 result: None,
             },
         }

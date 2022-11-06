@@ -1,6 +1,7 @@
 use crate::callable::Callable;
 use crate::instruction::Instruction;
-use crate::state::{StateResult, Stateful};
+use crate::state::states::{Eval, FrameEval};
+use crate::state::{states, StateResult, Stateful, TvmState};
 use crate::tvm::Tvm;
 use std::fmt::{Display, Formatter};
 
@@ -11,6 +12,7 @@ pub struct Frame {
     pub data: Vec<FrameData>,
     pub pc: usize,
     pub parent_frame: Option<Box<Frame>>,
+    pub parent_state: Option<Box<TvmState>>,
     pub result: Option<StateResult>,
 }
 
@@ -22,6 +24,7 @@ impl FromIterator<FrameData> for Frame {
             data: iter.into_iter().collect(),
             pc: 0,
             parent_frame: None,
+            parent_state: None,
             result: None,
         }
     }
@@ -53,6 +56,32 @@ impl Display for Frame {
 impl Frame {
     pub fn builder() -> FrameBuilder {
         FrameBuilder::new()
+    }
+
+    pub fn get_calling_function(&self) -> Option<Callable> {
+        if let Some(state) = &self.parent_state {
+            return match *state.clone() {
+                TvmState::Call(states::Call { callable, .. }) => Some(callable),
+                TvmState::Eval(Eval { frame, .. }) => frame.get_calling_function(),
+                TvmState::FrameEval(FrameEval { frame, .. }) => frame.get_calling_function(),
+                TvmState::Loop(states::Loop { frame, .. }) => frame.get_calling_function(),
+                _ => None,
+            };
+        }
+        panic!("No calling function found. Frames should always have a parent call state.");
+    }
+
+    pub fn get_calling_state(&self) -> Option<TvmState> {
+        if let Some(state) = &self.parent_state {
+            return match *state.clone() {
+                TvmState::Call(states::Call { .. }) => Some(*state.clone()),
+                TvmState::Eval(Eval { frame, .. }) => frame.get_calling_state(),
+                TvmState::FrameEval(FrameEval { frame, .. }) => frame.get_calling_state(),
+                TvmState::Loop(states::Loop { frame, .. }) => frame.get_calling_state(),
+                _ => None,
+            };
+        }
+        panic!("No calling function found. Frames should always have a parent call state.");
     }
 }
 
@@ -89,16 +118,16 @@ impl FrameData {
 }
 
 pub trait FrameEvaluator {
-    fn do_frame_eval(&mut self, frame: &Frame);
+    fn do_frame_eval(&mut self, frame: &Frame, in_loop: bool);
 }
 
 impl FrameEvaluator for Tvm {
-    fn do_frame_eval(&mut self, frame: &Frame) {
+    fn do_frame_eval(&mut self, frame: &Frame, in_loop: bool) {
         println!("Evaluating frame: {}", frame.name);
         let mut frame_dup = frame.clone();
         frame_dup.parent_frame = self.get_current_frame().map(Box::new);
         if self.should_continue() {
-            self.eval(frame_dup);
+            self.eval(frame_dup, in_loop);
         }
     }
 }
@@ -153,6 +182,7 @@ impl FrameBuilder {
             data: self.data,
             pc: 0,
             parent_frame: None,
+            parent_state: None,
             result: None,
         }
     }

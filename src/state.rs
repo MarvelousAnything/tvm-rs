@@ -1,6 +1,5 @@
-use crate::callable::Callable;
+use crate::callable::{Callable, Caller};
 use crate::frame::Frame;
-use crate::stack::StackHolder;
 use crate::state::states::{Call, Eval, FrameEval, Halted, Loop, Paused, Waiting};
 use crate::tvm::Tvm;
 use enum_dispatch::enum_dispatch;
@@ -110,16 +109,27 @@ pub trait Stateful: Debug {
     fn handle_result(&mut self, result: StateResult);
 
     fn call(&mut self, callable: Callable) {
-        self.set_state(Call { callable }.into());
+        self.set_state(Call { callable, frame: self.get_current_frame() }.into());
     }
 
-    fn eval(&mut self, frame: Frame) {
+    fn eval(&mut self, frame: Frame, in_loop: bool) {
         let pc = &frame.pc.clone();
-        self.set_state(Eval { frame, pc: *pc }.into());
+        let mut frame_dup = frame.clone();
+        frame_dup.parent_frame = Some(Box::new(frame));
+        self.set_state(
+            Eval {
+                frame: frame_dup,
+                pc: *pc,
+                in_loop
+            }
+            .into(),
+        );
     }
 
-    fn frame_eval(&mut self, frame: Frame) {
-        self.set_state(FrameEval { frame }.into());
+    fn frame_eval(&mut self, frame: Frame, in_loop: bool) {
+        let mut frame_dup = frame;
+        frame_dup.parent_state = Some(Box::new(self.get_state()));
+        self.set_state(FrameEval { frame: frame_dup, in_loop }.into());
     }
 
     fn should_continue(&self) -> bool {
@@ -135,6 +145,7 @@ pub trait Stateful: Debug {
         match self.get_state() {
             TvmState::Eval(state) => Some(state.frame),
             TvmState::FrameEval(state) => Some(state.frame),
+            TvmState::Loop(state) => Some(state.frame),
             _ => None,
         }
     }
@@ -201,11 +212,42 @@ impl Stateful for Tvm {
     }
 
     fn handle_result(&mut self, result: StateResult) {
-        println!("Handling result: {:?}", result);
-        if let StateResult::Return(res) = result {
-            self.next_state = self.previous_state();
-            self.push(res); // I have no clue if this is correct.
+        println!("Handling result: {:?} for state {}", result, self.state);
+        // When the state result is return, we always need to go back to the calling state.
+        // Return should only be used for functions (native or otherwise), so we can assume that the previous state
+        // is an call state
+        if let StateResult::Return(_res) = result {
+            if let Some(f) = self.get_current_frame() {
+                self.next_state = f.get_calling_state();
+                if let Some(TvmState::Call(call)) = &self.next_state {
+                    let mut frame = call.frame.clone().unwrap();
+                    frame.pc += 2;
+                    self.next_state = Some(TvmState::FrameEval(FrameEval { frame, in_loop: false }));
+                }
+            } else {
+                self.next_state = self.previous_state();
+            }
+            println!("Previous state: {}", self.previous_state.clone().unwrap());
+            println!("Next state: {}", self.next_state.clone().unwrap());
             self.last_result = Some(StateResult::Continue(0));
+
+            match self.get_state() {
+                TvmState::Call(Call { callable, .. }) => {
+                    self.handle_function_return(callable);
+                }
+                TvmState::Eval(Eval { frame, .. }) => {
+                    self.handle_function_return(frame.get_calling_function().unwrap());
+                }
+                TvmState::FrameEval(FrameEval { frame, .. }) => {
+                    self.handle_function_return(frame.get_calling_function().unwrap());
+                }
+                TvmState::Loop(Loop { frame, .. }) => {
+                    self.handle_function_return(frame.get_calling_function().unwrap());
+                }
+                _ => {
+                    panic!("Cannot return from state: {}", self.get_state());
+                }
+            }
         }
         if let StateResult::Break = result {
             self.next_state = self.previous_state();
@@ -224,10 +266,11 @@ impl Stateful for Tvm {
             Some(ref state) => Some(state.clone()),
             None => match (&self.state, &self.previous_state) {
                 (
-                    TvmState::Eval(Eval { frame, pc: _pc }),
+                    TvmState::Eval(Eval { frame, pc: _pc, .. }),
                     Some(TvmState::Eval(Eval {
                         frame: prev_frame,
                         pc: prev_pc,
+                        ..
                     })),
                 ) => {
                     let mut next_frame = frame.clone();
@@ -236,6 +279,7 @@ impl Stateful for Tvm {
                         Eval {
                             frame: next_frame,
                             pc: *prev_pc,
+                            in_loop: false
                         }
                         .into(),
                     )
@@ -263,15 +307,18 @@ pub mod states {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Call {
         pub callable: Callable,
+        pub frame: Option<Frame>,
     }
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Eval {
         pub frame: Frame,
         pub pc: usize,
+        pub in_loop: bool,
     }
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct FrameEval {
         pub frame: Frame,
+        pub in_loop: bool,
     }
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Halted;
@@ -330,7 +377,7 @@ pub mod states {
     impl State for Eval {
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
             if tvm.should_continue() {
-                tvm.do_eval(&mut self.frame, 0);
+                tvm.do_eval(&mut self.frame, self.in_loop);
                 self.pc = self.frame.pc;
             }
             Exit
@@ -346,7 +393,7 @@ pub mod states {
     impl State for FrameEval {
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
             if tvm.should_continue() {
-                tvm.do_frame_eval(&self.frame);
+                tvm.do_frame_eval(&self.frame, self.in_loop);
             }
             Exit
         }
@@ -373,8 +420,13 @@ pub mod states {
     impl State for Loop {
         // Do frame eval if the loop should not return.
         fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            if let Some(StateResult::Break) = tvm.get_last_result(){
-                tvm.frame_eval(self.frame.clone());
+            if let Some(StateResult::Break) = tvm.get_last_result() {
+                println!("Loop should eval loop_frame.");
+                tvm.frame_eval(self.loop_frame.clone(), true);
+            } else {
+                println!("Loop should repeat frame resetting pc to 0.");
+                self.frame.pc = 0;
+                tvm.frame_eval(self.frame.clone(), true);
             }
             Exit
         }

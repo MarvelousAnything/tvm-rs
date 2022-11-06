@@ -48,6 +48,7 @@ impl Display for Callable {
 pub trait Caller: Debug + Clone {
     fn do_call(&mut self, callable: Callable);
     fn get_callable(&self, id: i32) -> Callable;
+    fn handle_function_return(&mut self, callable: Callable);
 }
 
 impl Caller for Tvm {
@@ -66,8 +67,8 @@ impl Caller for Tvm {
                 // set the frame pointer to the value of the stack pointer prior to pushing the frame pointer to the stack
                 self.frame_pointer = self.stack_pointer + 1;
                 // evaluate the function
-                self.frame_eval(frame);
-                // TODO: Implement function return behavior
+                self.frame_eval(frame, false);
+                // // TODO: Implement function return behavior
                 // // pop the return value from the top of the stack
                 // let r = self.pop();
                 // // copy the frame pointer to the stack pointer
@@ -83,12 +84,15 @@ impl Caller for Tvm {
                 NativeFunction::IPrint { .. } => {
                     let value = self.pop();
                     println!("stdout: {}", value);
+                    self.stdout.push_str(&value.to_string());
                     self.push(0);
                     self.last_result = Some(Return(0));
                 }
                 NativeFunction::SPrint { .. } => {
                     let addr = self.pop();
-                    println!("stdout: {}", self.a2s(addr as usize));
+                    let s = self.a2s(addr as usize);
+                    println!("stdout: {}", s);
+                    self.stdout.push_str(&s);
                     self.push(0);
                     self.last_result = Some(Return(0));
                 }
@@ -128,6 +132,7 @@ impl Caller for Tvm {
                 }
                 NativeFunction::NL { .. } => {
                     println!();
+                    self.stdout.push('\n');
                     self.push(0);
                     self.last_result = Some(Return(0));
                 }
@@ -183,5 +188,19 @@ impl Caller for Tvm {
             n if n >= 0 => Callable::Function(self.get_function(n as usize)),
             _ => unreachable!(),
         }
+    }
+
+    fn handle_function_return(&mut self, callable: Callable) {
+        match callable {
+            Callable::Function(function) => {
+                println!("Returning from function: {}", function);
+                let r = self.pop();
+                self.stack_pointer = self.frame_pointer;
+                self.frame_pointer = self.peek() as usize;
+                self.stack_pointer += (function.locals + function.args) as usize;
+                self.push(r);
+            }
+            Callable::Native(_) => {}
+        };
     }
 }
