@@ -1,80 +1,48 @@
-use crate::callable::{Callable, Caller};
-use crate::frame::Frame;
-use crate::state::states::{Call, Eval, FrameEval, Halted, Loop, Paused, Waiting};
-use crate::tvm::Tvm;
-use enum_dispatch::enum_dispatch;
 use std::fmt::{Debug, Display, Formatter};
+use enum_dispatch::enum_dispatch;
+use crate::callable::{Callable, Caller};
+use crate::frame::{Frame, FrameEvaluator};
+use crate::instruction::Evaluator;
+use crate::tvm::Tvm;
 
-#[enum_dispatch(TvmState)]
-pub trait State: Debug + Display {
-    fn tick(&mut self, tvm: &mut Tvm) -> StateResult;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StateResult {
-    Return(i32),
-    Break,
-    Continue(i32),
-    Exit,
-}
-
-impl Display for StateResult {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            StateResult::Return(value) => write!(f, "Return({})", value),
-            StateResult::Break => write!(f, "Break"),
-            StateResult::Continue(value) => write!(f, "Continue({})", value),
-            StateResult::Exit => write!(f, "Exit"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 #[enum_dispatch]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TvmState {
-    Waiting(Waiting),
-    Paused(Paused),
-    Call(Call),
-    Eval(Eval),
-    FrameEval(FrameEval),
-    Halted(Halted),
-    Loop(Loop),
+    Waiting(WaitingState),
+    Call(CallState),
+    Eval(EvalState),
+    FrameEval(FrameEvalState),
+    Halt(HaltState)
 }
 
 impl TvmState {
-    pub fn is_waiting(&self) -> bool {
-        matches!(self, TvmState::Waiting(_))
-    }
-
-    pub fn is_paused(&self) -> bool {
-        matches!(self, TvmState::Paused(_))
-    }
-
-    pub fn is_call(&self) -> bool {
-        matches!(self, TvmState::Call(_))
-    }
-
-    pub fn is_eval(&self) -> bool {
-        matches!(self, TvmState::Eval(_))
-    }
-
-    pub fn is_frame_eval(&self) -> bool {
-        matches!(self, TvmState::FrameEval(_))
-    }
-
-    pub fn is_halted(&self) -> bool {
-        matches!(self, TvmState::Halted(_))
-    }
-
-    pub fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
+    pub fn get_previous_state(&self) -> Box<TvmState> {
         match self {
-            TvmState::Waiting(ref mut state) => state.tick(tvm),
-            TvmState::Paused(ref mut state) => state.tick(tvm),
-            TvmState::Call(ref mut state) => state.tick(tvm),
-            TvmState::Eval(ref mut state) => state.tick(tvm),
-            TvmState::FrameEval(ref mut state) => state.tick(tvm),
-            TvmState::Halted(ref mut state) => state.tick(tvm),
-            TvmState::Loop(ref mut state) => state.tick(tvm),
+            TvmState::Waiting(state) => state.get_previous_state(),
+            TvmState::Call(state) => state.get_previous_state(),
+            TvmState::Eval(state) => state.get_previous_state(),
+            TvmState::FrameEval(state) => state.get_previous_state(),
+            TvmState::Halt(state) => state.get_previous_state(),
+        }
+    }
+
+    pub fn set_previous_state(&mut self, new_state: Box<TvmState>) {
+        match self {
+            TvmState::Waiting(_) => {},
+            TvmState::Call(state) => state.previous_state = new_state,
+            TvmState::Eval(state) => state.previous_state = new_state,
+            TvmState::FrameEval(state) => state.previous_state = new_state,
+            TvmState::Halt(state) => state.previous_state = new_state,
+        }
+    }
+
+    pub fn set_result(&mut self, result: StateResult) {
+        match self {
+            TvmState::Waiting(state) => state.set_result(result),
+            TvmState::Call(state) => state.set_result(result),
+            TvmState::Eval(state) => state.set_result(result),
+            TvmState::FrameEval(state) => state.set_result(result),
+            TvmState::Halt(_state) => {},
         }
     }
 }
@@ -83,352 +51,290 @@ impl Display for TvmState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             TvmState::Waiting(state) => write!(f, "{}", state),
-            TvmState::Paused(state) => write!(f, "{}", state),
-            TvmState::Call(state) => write!(f, "{} {}", state, state.callable),
-            TvmState::Eval(state) => write!(f, "{} {} {}", state, state.frame.name, state.frame.pc),
-            TvmState::FrameEval(state) => {
-                write!(f, "{} {} {}", state, state.frame.name, state.frame.pc)
-            }
-            TvmState::Halted(state) => write!(f, "{}", state),
-            TvmState::Loop(state) => write!(f, "{}", state),
+            TvmState::Call(state) => write!(f, "{{{}}} <- {}", state, state.get_previous_state()),
+            TvmState::Eval(state) => write!(f, "{{{} frame: {}, pc: {}}} <- {}", state, state.frame.name, state.frame.pc, state.get_previous_state()),
+            TvmState::FrameEval(state) => write!(f, "{} <- {}", state, state.get_previous_state()),
+            TvmState::Halt(state) => write!(f, "{} <- {}", state, state.get_previous_state()),
         }
     }
 }
 
-pub trait Stateful: Debug {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StateResult {
+    None,
+    Return,
+    Break,
+    Exit,
+    Continue,
+    Halt
+}
+
+#[enum_dispatch(TvmState)]
+pub trait State: Debug + Display {
+    fn tick(&mut self, tvm: &mut Tvm);
+    fn get_previous_state(&self) -> Box<TvmState>;
+    fn get_result(&self) -> StateResult;
+    fn set_result(&mut self, result: StateResult);
+}
+
+pub trait StateHolder {
     fn get_state(&self) -> TvmState;
     fn set_state(&mut self, state: TvmState);
-    fn get_ticks(&self) -> usize;
-    fn increment_ticks(&mut self);
-    fn previous_state(&self) -> Option<TvmState>;
-    fn pause(&mut self);
-    fn resume(&mut self);
-    fn tick(&mut self);
-    fn get_last_result(&self) -> Option<StateResult>;
-    fn is_paused(&self) -> bool;
+    fn get_previous_state(&self) -> Box<TvmState>;
+    fn get_result(&self) -> StateResult;
     fn handle_result(&mut self, result: StateResult);
-
-    fn call(&mut self, callable: Callable) {
-        self.set_state(Call { callable, frame: self.get_current_frame() }.into());
-    }
-
-    fn eval(&mut self, frame: Frame, in_loop: bool) {
-        let pc = &frame.pc.clone();
-        let mut frame_dup = frame.clone();
-        frame_dup.parent_frame = Some(Box::new(frame));
-        self.set_state(
-            Eval {
-                frame: frame_dup,
-                pc: *pc,
-                in_loop
-            }
-            .into(),
-        );
-    }
-
-    fn frame_eval(&mut self, frame: Frame, in_loop: bool) {
-        let mut frame_dup = frame;
-        frame_dup.parent_state = Some(Box::new(self.get_state()));
-        self.set_state(FrameEval { frame: frame_dup, in_loop }.into());
-    }
-
-    fn should_continue(&self) -> bool {
-        !(self.get_state().is_halted()
-            || matches!(self.get_last_result(), Some(StateResult::Exit))
-            || matches!(self.get_last_result(), Some(StateResult::Break))
-            || matches!(self.get_last_result(), Some(StateResult::Return(_))))
-    }
-
-    fn get_next_state(&mut self) -> Option<TvmState>;
-
-    fn get_current_frame(&self) -> Option<Frame> {
-        match self.get_state() {
-            TvmState::Eval(state) => Some(state.frame),
-            TvmState::FrameEval(state) => Some(state.frame),
-            TvmState::Loop(state) => Some(state.frame),
-            _ => None,
-        }
-    }
+    fn tick(&mut self);
+    fn call(&mut self, callable: Callable);
+    fn frame_eval(&mut self, frame: Frame);
+    fn eval(&mut self, frame: Frame);
+    fn should_continue(&self) -> bool;
 }
 
-impl Stateful for Tvm {
+impl StateHolder for Tvm {
     fn get_state(&self) -> TvmState {
         self.state.clone()
     }
 
     fn set_state(&mut self, state: TvmState) {
-        println!("Setting state to: {}", state);
-        self.previous_state = Some(self.state.clone());
+        println!("{} -> {}", self.state, state);
+        let temp = self.state.clone();
         self.state = state;
+        self.state.set_previous_state(Box::new(temp));
     }
 
-    fn get_ticks(&self) -> usize {
-        self.ticks
+    fn get_previous_state(&self) -> Box<TvmState> {
+        self.state.get_previous_state()
     }
 
-    fn increment_ticks(&mut self) {
-        self.ticks += 1;
+    fn get_result(&self) -> StateResult {
+        self.state.get_result()
     }
 
-    fn previous_state(&self) -> Option<TvmState> {
-        if let Some(TvmState::Eval(frame)) = &self.previous_state {
-            Some(TvmState::Eval(frame.clone()))
-        } else {
-            None
-        }
-    }
-
-    fn pause(&mut self) {
-        if !self.is_paused() {
-            self.set_state(Paused {}.into());
-        }
-    }
-
-    fn resume(&mut self) {
-        if self.is_paused() {
-            self.set_state(self.previous_state().unwrap());
+    fn handle_result(&mut self, result: StateResult) {
+        let previous_state = *self.get_previous_state();
+        println!("Handling result: {:#?} for {}", result, previous_state);
+        println!("Current state: {}", self.state);
+        match result {
+            StateResult::None => {}
+            StateResult::Return => {
+                self.state = previous_state;
+            }
+            StateResult::Break => {
+                self.state = previous_state;
+            }
+            StateResult::Continue => {
+                // Hopefully this should backtrack to the correct state.
+                match (&self.state, &previous_state) {
+                    (TvmState::Eval(_), TvmState::Call(_)) => {
+                        self.state = previous_state;
+                    }
+                    (_, _) => {}
+                }
+            }
+            StateResult::Halt => {
+                self.state = TvmState::Halt(HaltState { previous_state: Box::new(previous_state) });
+            }
+            StateResult::Exit => {
+                self.state = TvmState::Halt(HaltState { previous_state: Box::new(previous_state) });
+            }
         }
     }
 
     fn tick(&mut self) {
-        // Do nothing if the tvm is paused
-        if !self.is_paused() && self.should_continue() {
-            self.increment_ticks();
-            let mut temp_state = self.get_next_state().unwrap();
-            self.state = temp_state.clone();
-            temp_state.tick(self);
-            let result = self.get_last_result();
-            self.handle_result(result.unwrap());
-            self.previous_state = Some(temp_state);
+        let mut temp_state = self.state.clone();
+        println!("Ticking: {}", temp_state);
+        temp_state.tick(self); // This is so the PC can persist. Hopefully.
+        println!("{:#?}", temp_state.get_result());
+        println!("{:#?}", self.get_result());
+        if matches!(temp_state, TvmState::Eval(_)) && matches!(self.state, TvmState::Eval(_)) {
+            self.state = temp_state;
+        } else if matches!(self.state, TvmState::Call(_)) && !matches!(temp_state, TvmState::Call(_)) {
+            println!("Setting state to: {}", temp_state);
+            // Assuming that temp_state is an EvalState, when we evaluate call state, we want to go back to the temp_state with incremented PC.
+            self.state.set_previous_state(Box::new(temp_state)); // This is so the PC can persist. Hopefully. After the call, we want to go back to the EvalState.
         }
+
+        self.handle_result(self.get_result());
+        self.ticks += 1;
     }
 
-    fn get_last_result(&self) -> Option<StateResult> {
-        self.last_result.clone()
+    fn call(&mut self, callable: Callable) {
+        self.set_state(CallState {
+            callable,
+            previous_state: Box::new(self.get_state()),
+            result: StateResult::Continue
+        }.into())
     }
 
-    fn is_paused(&self) -> bool {
-        matches!(self.state, TvmState::Paused(_))
+    fn frame_eval(&mut self, frame: Frame) {
+        self.set_state(FrameEvalState {
+            frame,
+            previous_state: Box::new(self.get_state()),
+            result: StateResult::Continue
+        }.into())
     }
 
-    fn handle_result(&mut self, result: StateResult) {
-        println!("Handling result: {:?} for state {}", result, self.state);
-        // When the state result is return, we always need to go back to the calling state.
-        // Return should only be used for functions (native or otherwise), so we can assume that the previous state
-        // is an call state
-        if let StateResult::Return(_res) = result {
-            if let Some(f) = self.get_current_frame() {
-                self.next_state = f.get_calling_state();
-                if let Some(TvmState::Call(call)) = &self.next_state {
-                    let mut frame = call.frame.clone().unwrap();
-                    frame.pc += 2;
-                    self.next_state = Some(TvmState::FrameEval(FrameEval { frame, in_loop: false }));
-                }
-            } else {
-                self.next_state = self.previous_state();
-            }
-            println!("Previous state: {}", self.previous_state.clone().unwrap());
-            println!("Next state: {}", self.next_state.clone().unwrap());
-            self.last_result = Some(StateResult::Continue(0));
-
-            match self.get_state() {
-                TvmState::Call(Call { callable, .. }) => {
-                    self.handle_function_return(callable);
-                }
-                TvmState::Eval(Eval { frame, .. }) => {
-                    self.handle_function_return(frame.get_calling_function().unwrap());
-                }
-                TvmState::FrameEval(FrameEval { frame, .. }) => {
-                    self.handle_function_return(frame.get_calling_function().unwrap());
-                }
-                TvmState::Loop(Loop { frame, .. }) => {
-                    self.handle_function_return(frame.get_calling_function().unwrap());
-                }
-                _ => {
-                    panic!("Cannot return from state: {}", self.get_state());
-                }
-            }
-        }
-        if let StateResult::Break = result {
-            self.next_state = self.previous_state();
-            self.last_result = Some(StateResult::Continue(0));
-        }
-        if let StateResult::Exit = result {
-            self.next_state = Some(Halted {}.into());
-        }
+    fn eval(&mut self, frame: Frame) {
+        self.set_state(EvalState {
+            frame,
+            previous_state: Box::new(self.get_state()),
+            result: StateResult::Continue
+        }.into())
     }
 
-    // Hacky way of passing the program counter for a frame.
-    fn get_next_state(&mut self) -> Option<TvmState> {
-        let next = self.next_state.clone();
-        self.next_state = None;
-        match next {
-            Some(ref state) => Some(state.clone()),
-            None => match (&self.state, &self.previous_state) {
-                (
-                    TvmState::Eval(Eval { frame, pc: _pc, .. }),
-                    Some(TvmState::Eval(Eval {
-                        frame: prev_frame,
-                        pc: prev_pc,
-                        ..
-                    })),
-                ) => {
-                    let mut next_frame = frame.clone();
-                    next_frame.pc = prev_frame.pc;
-                    Some(
-                        Eval {
-                            frame: next_frame,
-                            pc: *prev_pc,
-                            in_loop: false
-                        }
-                        .into(),
-                    )
-                }
-                (state, _) => {
-                    println!("No arms match.");
-                    Some(state.clone())
-                }
-            },
-        }
+    fn should_continue(&self) -> bool {
+        !matches!(self.state, TvmState::Halt(_))
     }
 }
 
-pub mod states {
-    use super::*;
-    use crate::callable::Caller;
-    use crate::frame::FrameEvaluator;
-    use crate::instruction::Evaluator;
-    use crate::state::StateResult::{Continue, Exit};
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WaitingState;
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct Waiting;
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct Paused;
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct Call {
-        pub callable: Callable,
-        pub frame: Option<Frame>,
-    }
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct Eval {
-        pub frame: Frame,
-        pub pc: usize,
-        pub in_loop: bool,
-    }
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct FrameEval {
-        pub frame: Frame,
-        pub in_loop: bool,
-    }
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct Halted;
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct Loop {
-        pub frame: Frame,
-        pub loop_frame: Frame,
+impl State for WaitingState {
+    fn tick(&mut self, tvm: &mut Tvm) {
+        tvm.state = self.clone().into();
     }
 
-    impl Display for Waiting {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Waiting")
-        }
+    fn get_previous_state(&self) -> Box<TvmState> {
+        Box::new(TvmState::Waiting(Self))
     }
 
-    impl State for Waiting {
-        // Tick should do nothing.
-        fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            Continue(0)
-        }
+    fn get_result(&self) -> StateResult {
+        StateResult::None
     }
 
-    impl Display for Paused {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Paused")
-        }
+    fn set_result(&mut self, _result: StateResult) {}
+}
+
+impl Display for WaitingState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "WaitingState")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallState {
+    pub callable: Callable,
+    pub previous_state: Box<TvmState>,
+    pub result: StateResult,
+}
+
+impl State for CallState {
+    fn tick(&mut self, tvm: &mut Tvm) {
+        tvm.state = self.clone().into();
+        tvm.do_call(self.callable.clone());
     }
 
-    impl State for Paused {
-        // Tick should do nothing.
-        fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            Continue(0)
-        }
+    fn get_previous_state(&self) -> Box<TvmState> {
+        self.previous_state.clone()
     }
 
-    impl Display for Call {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Call")
-        }
+    fn get_result(&self) -> StateResult {
+        self.result.clone()
     }
 
-    impl State for Call {
-        fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            tvm.do_call(self.callable.clone());
-            Continue(0)
-        }
+    fn set_result(&mut self, result: StateResult) {
+        self.result = result;
+    }
+}
+
+impl Display for CallState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CallState for {}", self.callable)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvalState {
+    pub frame: Frame,
+    pub previous_state: Box<TvmState>,
+    pub result: StateResult,
+}
+
+impl State for EvalState {
+    fn tick(&mut self, tvm: &mut Tvm) {
+        tvm.state = self.clone().into();
+        tvm.do_eval(&mut self.frame);
     }
 
-    impl Display for Eval {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Eval")
-        }
+    fn get_previous_state(&self) -> Box<TvmState> {
+        self.previous_state.clone()
     }
 
-    impl State for Eval {
-        fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            if tvm.should_continue() {
-                tvm.do_eval(&mut self.frame, self.in_loop);
-                self.pc = self.frame.pc;
-            }
-            Exit
-        }
+    fn get_result(&self) -> StateResult {
+        self.result.clone()
     }
 
-    impl Display for FrameEval {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            write!(f, "FrameEval")
-        }
+    fn set_result(&mut self, result: StateResult) {
+        self.result = result;
+    }
+}
+
+impl Display for EvalState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EvalState")
+    }
+}
+
+// The only real purpose of this state is to call the eval state
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FrameEvalState {
+    pub frame: Frame,
+    pub previous_state: Box<TvmState>,
+    pub result: StateResult,
+}
+
+impl State for FrameEvalState {
+    fn tick(&mut self, tvm: &mut Tvm) {
+        tvm.state = self.clone().into();
+        tvm.do_frame_eval(self.frame.clone());
     }
 
-    impl State for FrameEval {
-        fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            if tvm.should_continue() {
-                tvm.do_frame_eval(&self.frame, self.in_loop);
-            }
-            Exit
-        }
+    fn get_previous_state(&self) -> Box<TvmState> {
+        self.previous_state.clone()
     }
 
-    impl Display for Halted {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Halted")
-        }
+    fn get_result(&self) -> StateResult {
+        self.result.clone()
     }
 
-    impl State for Halted {
-        fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            Exit
-        }
+    fn set_result(&mut self, result: StateResult) {
+        self.result = result;
+    }
+}
+
+impl Display for FrameEvalState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FrameEvalState")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HaltState {
+    pub previous_state: Box<TvmState>,
+}
+
+impl State for HaltState {
+    fn tick(&mut self, tvm: &mut Tvm) {
+        tvm.state = self.clone().into();
+        println!("HaltState");
     }
 
-    impl Display for Loop {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Loop")
-        }
+    fn get_previous_state(&self) -> Box<TvmState> {
+        self.previous_state.clone()
     }
 
-    impl State for Loop {
-        // Do frame eval if the loop should not return.
-        fn tick(&mut self, tvm: &mut Tvm) -> StateResult {
-            if let Some(StateResult::Break) = tvm.get_last_result() {
-                println!("Loop should eval loop_frame.");
-                tvm.frame_eval(self.loop_frame.clone(), true);
-            } else {
-                println!("Loop should repeat frame resetting pc to 0.");
-                self.frame.pc = 0;
-                tvm.frame_eval(self.frame.clone(), true);
-            }
-            Exit
-        }
+    fn get_result(&self) -> StateResult {
+        StateResult::Halt
+    }
+
+    fn set_result(&mut self, _result: StateResult) {
+
+    }
+}
+
+impl Display for HaltState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "HaltState")
     }
 }

@@ -1,5 +1,5 @@
 use crate::program::Program;
-use crate::state::{Stateful, TvmState};
+use crate::state::{StateHolder, TvmState};
 use crate::tvm::Tvm;
 
 mod callable;
@@ -24,20 +24,14 @@ fn main() {
     tvm.load(program);
     println!("{}", tvm);
     tvm.start();
-    while !tvm.state.is_halted() {
+    while !tvm.is_halted() {
         stdin()
             .read_line(&mut s)
             .expect("Did not enter a correct string");
         if s.trim() == "? state" {
             println!("{:#?}", tvm.state);
         } else if s.trim() == "state" {
-            if let TvmState::Eval(eval) = &tvm.state {
-                println!("{}", eval.frame);
-            }
-            if let TvmState::Loop(loop_) = &tvm.state {
-                println!("Frame: {}", loop_.frame);
-                println!("Loop frame: {}", loop_.loop_frame);
-            }
+            println!("{}", tvm.state);
         } else if s.trim() == "? memory" {
             println!("{}", tvm.get_active_memory_string());
         } else if s.trim() == "? program" {

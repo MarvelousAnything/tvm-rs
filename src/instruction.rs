@@ -1,8 +1,7 @@
 use crate::callable::Caller;
 use crate::frame::{Frame, FrameData};
 use crate::stack::StackHolder;
-use crate::state::StateResult::Exit;
-use crate::state::{states, StateResult, Stateful};
+use crate::state::{StateResult, StateHolder};
 use crate::tvm::Tvm;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -362,22 +361,23 @@ impl Instruction {
 }
 
 pub trait Evaluator: Debug + Clone {
-    fn do_eval(&mut self, frame: &mut Frame, in_loop: bool);
+    fn do_eval(&mut self, frame: &mut Frame);
     fn get_next_frame(frame_data: &mut FrameData) -> Option<Frame>;
 }
 
 impl Evaluator for Tvm {
-    fn do_eval(&mut self, frame: &mut Frame, in_loop: bool) {
+    fn do_eval(&mut self, frame: &mut Frame) {
         if frame.pc >= frame.data.len() {
-            self.last_result = Some(Exit);
+            self.state.set_result(StateResult::Exit);
             return;
         }
         let data = &frame.data.get(frame.pc).unwrap();
         frame.pc += 1;
+        self.state.set_result(StateResult::Continue);
         match data {
-            FrameData::Frame(frame) => self.frame_eval(frame.clone(), in_loop),
+            FrameData::Frame(frame) => self.frame_eval(frame.clone()),
             FrameData::Instruction(instruction, ..) => {
-                println!("Evaluating instruction: {:?}", instruction);
+                println!("Evaluating instruction: {}", instruction);
                 match instruction {
                     Instruction::Push { .. } => {
                         let x = &frame.data[frame.pc].get_id();
@@ -398,16 +398,16 @@ impl Evaluator for Tvm {
                         let next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc])
                             .expect("could not get next frame");
                         if condition != 0 {
-                            self.frame_eval(next_frame, in_loop);
+                            self.frame_eval(next_frame);
                             frame.pc += 2;
                         } else {
                             frame.pc += 1;
-                            self.frame_eval(next_frame, in_loop);
+                            self.frame_eval(next_frame);
                             frame.pc += 1;
                         }
-                        match self.last_result {
-                            Some(StateResult::Break) => (),
-                            Some(StateResult::Return(_)) => (),
+                        match self.get_result() {
+                            StateResult::Break => (),
+                            StateResult::Return => (),
                             _ => panic!("IF instruction did not terminate."),
                         }
                     }
@@ -419,22 +419,16 @@ impl Evaluator for Tvm {
                         next_frame.name = "loop-".to_string();
                         next_frame.name.push_str(&loop_frame.name);
                         loop_frame.pc -= 1;
-                        self.set_state(
-                            states::Loop {
-                                frame: next_frame,
-                                loop_frame: frame.clone(),
-                            }
-                            .into(),
-                        );
+                        self.frame_eval(next_frame)
                     }
                     Instruction::Break { .. } => {
                         let x = self.pop();
                         if x != 0 {
-                            self.last_result = Some(StateResult::Break);
+                            self.state.set_result(StateResult::Break);
                         }
                     }
                     Instruction::Return { .. } => {
-                        self.last_result = Some(StateResult::Return(0));
+                        self.state.set_result(StateResult::Return);
                     }
                     Instruction::Call { .. } => {
                         let id = &frame.data[frame.pc].get_id();

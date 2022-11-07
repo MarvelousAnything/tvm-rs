@@ -1,9 +1,7 @@
 use crate::callable::Caller;
 use crate::function::Function;
 use crate::program::Program;
-use crate::state;
-use crate::state::StateResult::Continue;
-use crate::state::{StateResult, Stateful, TvmState};
+use crate::state::{StateHolder, TvmState, WaitingState};
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
@@ -14,9 +12,6 @@ pub struct Tvm {
     pub heap_size: usize,
     pub state: TvmState,
     pub ticks: usize,
-    pub previous_state: Option<TvmState>,
-    pub next_state: Option<TvmState>,
-    pub last_result: Option<StateResult>,
     pub stdout: String,
     pub program: Program,
 }
@@ -28,11 +23,8 @@ impl Default for Tvm {
             stack_pointer: 65535,
             frame_pointer: 65535,
             heap_size: 0,
-            state: TvmState::Waiting(state::states::Waiting),
+            state: TvmState::Waiting(WaitingState),
             ticks: 0,
-            previous_state: None,
-            next_state: None,
-            last_result: Some(Continue(0)),
             stdout: String::new(),
             program: Program::default(),
         }
@@ -57,9 +49,6 @@ impl Display for Tvm {
         writeln!(f, "  Heap Size: {}", self.heap_size)?;
         writeln!(f, "  State: {}", self.state)?;
         writeln!(f, "  Ticks: {}", self.ticks)?;
-        writeln!(f, "  Previous State: {:?}", self.previous_state)?;
-        writeln!(f, "  Next State: {:?}", self.next_state)?;
-        writeln!(f, "  Last Result: {:?}", self.last_result)?;
         Ok(())
     }
 }
@@ -104,7 +93,7 @@ impl Tvm {
         for i in self.stack_pointer..65536 {
             memory.push((i, self.memory[i]));
         }
-        memory.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        memory.sort_by(|(a, _), (b, _)| a.cmp(b));
         memory
     }
 
@@ -119,14 +108,17 @@ impl Tvm {
     pub fn get_function(&self, id: usize) -> Function {
         self.program.functions[id].clone()
     }
+
+    pub fn is_halted(&self) -> bool {
+        matches!(self.state, TvmState::Halt(_))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::callable;
-    use crate::state::states::Waiting;
-    use crate::state::Stateful;
+    use crate::state::CallState;
 
     fn get_test_program() -> Program {
         Program::builder()
@@ -150,9 +142,9 @@ mod tests {
         assert_eq!(tvm.stack_pointer, 65535);
         assert_eq!(tvm.frame_pointer, 65535);
         assert_eq!(tvm.heap_size, 0);
-        assert_eq!(tvm.state, TvmState::Waiting(Waiting));
+        assert_eq!(tvm.state, TvmState::Waiting(WaitingState));
         assert_eq!(tvm.ticks, 0);
-        assert_eq!(tvm.previous_state, None);
+        assert_eq!(tvm.get_previous_state(), Box::new(TvmState::Waiting(WaitingState)));
     }
 
     #[test]
@@ -176,9 +168,9 @@ mod tests {
         tvm.load(program);
         tvm.start();
         let state = tvm.state;
-        assert!(state.is_call());
+        assert!(matches!(state, TvmState::Call(_)));
         assert!(
-            matches!(state, TvmState::Call(state::states::Call { callable: callable::Callable::Function(function), .. }) if function.id == 0 && function.name == "init")
+            matches!(state, TvmState::Call(CallState { callable: callable::Callable::Function(function), .. }) if function.id == 0 && function.name == "init")
         );
     }
 

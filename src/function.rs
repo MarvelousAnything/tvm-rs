@@ -18,7 +18,7 @@ impl Function {
 
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+        write!(f, "function: {} args: {}, locals: {}", self.name, self.args, self.locals)
     }
 }
 

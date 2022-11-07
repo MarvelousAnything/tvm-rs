@@ -1,7 +1,6 @@
 use crate::callable::Callable;
 use crate::instruction::Instruction;
-use crate::state::states::{Eval, FrameEval};
-use crate::state::{states, StateResult, Stateful, TvmState};
+use crate::state::{StateHolder};
 use crate::tvm::Tvm;
 use std::fmt::{Display, Formatter};
 
@@ -11,9 +10,6 @@ pub struct Frame {
     pub name: String,
     pub data: Vec<FrameData>,
     pub pc: usize,
-    pub parent_frame: Option<Box<Frame>>,
-    pub parent_state: Option<Box<TvmState>>,
-    pub result: Option<StateResult>,
 }
 
 impl FromIterator<FrameData> for Frame {
@@ -23,9 +19,6 @@ impl FromIterator<FrameData> for Frame {
             name: "".to_string(),
             data: iter.into_iter().collect(),
             pc: 0,
-            parent_frame: None,
-            parent_state: None,
-            result: None,
         }
     }
 }
@@ -37,51 +30,17 @@ impl Display for Frame {
         for d in &self.data {
             data.push_str(&format!("\n\t{},", d));
         }
-        let mut previous_frame = String::new();
-        if let Some(frame) = &self.parent_frame {
-            previous_frame = format!("{}", frame);
-        }
-        let mut result = String::new();
-        if let Some(state_result) = &self.result {
-            result = format!("{}", state_result);
-        }
         write!(
             f,
-            "Frame {{ id: {}, name: {}, data: {}, pc: {}, previous_frame: {}, result: {}, current instruction: {} }}",
-            self.id, self.name, data, self.pc, previous_frame, result, self.data[self.pc]
+            "Frame {{ id: {}, name: {}, data: {}, pc: {}, current instruction: {} }}",
+            self.id, self.name, data, self.pc, self.data[self.pc]
         )
     }
 }
 
 impl Frame {
     pub fn builder() -> FrameBuilder {
-        FrameBuilder::new()
-    }
-
-    pub fn get_calling_function(&self) -> Option<Callable> {
-        if let Some(state) = &self.parent_state {
-            return match *state.clone() {
-                TvmState::Call(states::Call { callable, .. }) => Some(callable),
-                TvmState::Eval(Eval { frame, .. }) => frame.get_calling_function(),
-                TvmState::FrameEval(FrameEval { frame, .. }) => frame.get_calling_function(),
-                TvmState::Loop(states::Loop { frame, .. }) => frame.get_calling_function(),
-                _ => None,
-            };
-        }
-        panic!("No calling function found. Frames should always have a parent call state.");
-    }
-
-    pub fn get_calling_state(&self) -> Option<TvmState> {
-        if let Some(state) = &self.parent_state {
-            return match *state.clone() {
-                TvmState::Call(states::Call { .. }) => Some(*state.clone()),
-                TvmState::Eval(Eval { frame, .. }) => frame.get_calling_state(),
-                TvmState::FrameEval(FrameEval { frame, .. }) => frame.get_calling_state(),
-                TvmState::Loop(states::Loop { frame, .. }) => frame.get_calling_state(),
-                _ => None,
-            };
-        }
-        panic!("No calling function found. Frames should always have a parent call state.");
+        FrameBuilder::default()
     }
 }
 
@@ -118,16 +77,14 @@ impl FrameData {
 }
 
 pub trait FrameEvaluator {
-    fn do_frame_eval(&mut self, frame: &Frame, in_loop: bool);
+    fn do_frame_eval(&mut self, frame: Frame);
 }
 
 impl FrameEvaluator for Tvm {
-    fn do_frame_eval(&mut self, frame: &Frame, in_loop: bool) {
+    fn do_frame_eval(&mut self, frame: Frame) {
         println!("Evaluating frame: {}", frame.name);
-        let mut frame_dup = frame.clone();
-        frame_dup.parent_frame = self.get_current_frame().map(Box::new);
         if self.should_continue() {
-            self.eval(frame_dup, in_loop);
+            self.eval(frame);
         }
     }
 }
@@ -140,9 +97,6 @@ pub struct FrameBuilder {
 }
 
 impl FrameBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
 
     pub fn id(mut self, id: usize) -> Self {
         self.id = id;
@@ -181,9 +135,6 @@ impl FrameBuilder {
             name: self.name,
             data: self.data,
             pc: 0,
-            parent_frame: None,
-            parent_state: None,
-            result: None,
         }
     }
 }
@@ -192,7 +143,7 @@ impl FrameBuilder {
 mod tests {
     use super::*;
     use crate::state;
-    use crate::state::TvmState;
+    use crate::state::{EvalState, TvmState};
 
     #[test]
     fn test_do_frame_eval() {
@@ -203,9 +154,9 @@ mod tests {
             .primitive(2)
             .primitive(3)
             .build();
-        tvm.do_frame_eval(&frame);
+        tvm.do_frame_eval(frame);
         assert!(
-            matches!(tvm.state, TvmState::Eval(state::states::Eval { frame, .. }) if frame.name == "test")
+            matches!(tvm.state, TvmState::Eval(EvalState { frame, .. }) if frame.name == "test")
         );
     }
 
