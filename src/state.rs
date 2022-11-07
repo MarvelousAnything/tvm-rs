@@ -117,7 +117,12 @@ impl StateHolder for Tvm {
         match result {
             StateResult::None => {}
             StateResult::Return => {
-                self.state = previous_state;
+                // If there is a nested frame. For instance a return statement within a loop, this will not work.
+                // For now, my rational is that the return call will be within a frame eval state
+                // and that frame eval state will have a previous state of a call state. This is the call for the function that is being returned from.
+                // That call state will have a previous state of eval state. This is where we want to return to.
+                // This is only for non-native functions.
+                self.state = self.state.get_return_state().into();
             }
             StateResult::Break => {
                 self.state = previous_state;
@@ -144,8 +149,7 @@ impl StateHolder for Tvm {
         let mut temp_state = self.state.clone();
         println!("Ticking: {}", temp_state);
         temp_state.tick(self); // This is so the PC can persist. Hopefully.
-        println!("{:#?}", temp_state.get_result());
-        println!("{:#?}", self.get_result());
+        temp_state.set_result(self.get_result()); // Update temp state with result.
         if matches!(temp_state, TvmState::Eval(_)) && matches!(self.state, TvmState::Eval(_)) {
             self.state = temp_state;
         } else if matches!(self.state, TvmState::Call(_)) && !matches!(temp_state, TvmState::Call(_)) {

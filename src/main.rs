@@ -13,6 +13,7 @@ mod program;
 mod stack;
 mod state;
 mod tvm;
+mod state_utils;
 
 fn main() {
     use std::io::{stdin, stdout, Write};
@@ -46,4 +47,5 @@ fn main() {
         }
         s.clear();
     }
+    println!("{}", tvm.stdout);
 }
