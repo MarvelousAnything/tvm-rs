@@ -3,6 +3,7 @@ use crate::function::Function;
 use crate::program::Program;
 use crate::state::{StateHolder, TvmState, WaitingState};
 use std::fmt::Display;
+use tui::widgets::{ListState, TableState};
 
 #[derive(Debug, Clone)]
 pub struct Tvm {
@@ -14,6 +15,10 @@ pub struct Tvm {
     pub ticks: usize,
     pub stdout: String,
     pub program: Program,
+    pub table_state: TableState,
+    pub log: String,
+    pub log_state: ListState,
+    pub state_history: Vec<TvmState>,
 }
 
 impl Default for Tvm {
@@ -27,6 +32,10 @@ impl Default for Tvm {
             ticks: 0,
             stdout: String::new(),
             program: Program::default(),
+            table_state: TableState::default(),
+            log: String::new(),
+            log_state: ListState::default(),
+            state_history: Vec::new(),
         }
     }
 }
@@ -66,6 +75,20 @@ impl Tvm {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.memory = [0; 65536];
+        self.stack_pointer = 65535;
+        self.frame_pointer = 65535;
+        self.heap_size = 0;
+        self.state = TvmState::Waiting(WaitingState);
+        self.ticks = 0;
+        self.stdout = String::new();
+        self.table_state = TableState::default();
+        self.state_history = Vec::new();
+        self.log.push_str("Reset\n");
+        self.load(self.program.clone());
+    }
+
     pub fn a2s(&mut self, address: usize) -> String {
         let mut s = String::new();
         let mut i = address;
@@ -87,9 +110,9 @@ impl Tvm {
 
     pub fn get_active_memory(&self) -> Vec<(usize, i32)> {
         let mut memory = Vec::new();
-        for i in 0..self.heap_size {
-            memory.push((i, self.memory[i]));
-        }
+        // for i in 0..self.heap_size {
+        //     memory.push((i, self.memory[i]));
+        // }
         for i in self.stack_pointer..65536 {
             memory.push((i, self.memory[i]));
         }
@@ -144,7 +167,10 @@ mod tests {
         assert_eq!(tvm.heap_size, 0);
         assert_eq!(tvm.state, TvmState::Waiting(WaitingState));
         assert_eq!(tvm.ticks, 0);
-        assert_eq!(tvm.get_previous_state(), Box::new(TvmState::Waiting(WaitingState)));
+        assert_eq!(
+            tvm.get_previous_state(),
+            Box::new(TvmState::Waiting(WaitingState))
+        );
     }
 
     #[test]

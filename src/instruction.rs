@@ -1,7 +1,7 @@
 use crate::callable::Caller;
 use crate::frame::{Frame, FrameData};
 use crate::stack::StackHolder;
-use crate::state::{StateResult, StateHolder};
+use crate::state::{StateHolder, StateResult};
 use crate::tvm::Tvm;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -369,11 +369,13 @@ impl Evaluator for Tvm {
     fn do_eval(&mut self, frame: &mut Frame) {
         if frame.pc >= frame.data.len() {
             if self.state.check_in_loop() {
-                println!("loop detected");
+                // println!("loop detected");
+                self.log.push_str("loop_detected\n");
                 frame.pc = 0;
                 self.state.set_result(StateResult::Continue)
             } else {
-                println!("program finished");
+                // println!("program finished");
+                self.log.push_str("program finished\n");
                 self.state.set_result(StateResult::Exit);
             }
             return;
@@ -384,7 +386,8 @@ impl Evaluator for Tvm {
         match data {
             FrameData::Frame(frame) => self.frame_eval(frame.clone()),
             FrameData::Instruction(instruction, ..) => {
-                println!("Evaluating instruction: {}", instruction);
+                // println!("Evaluating instruction: {}", instruction);
+                self.log.push_str(format!("Evaluating instruction: {}\n", instruction).as_str());
                 match instruction {
                     Instruction::Push { .. } => {
                         let x = &frame.data[frame.pc].get_id();

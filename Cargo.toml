@@ -19,3 +19,5 @@ enum_dispatch = "0.3.8"
 rand = "0.8.5"
 #serde = { version = "1.0.147" }
 serde_json = "1.0.86"
+tui = "0.19.0"
+crossterm = "0.25.0"

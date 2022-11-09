@@ -1,10 +1,10 @@
-use std::fmt::{Debug, Display, Formatter};
-use enum_dispatch::enum_dispatch;
 use crate::callable::{Callable, Caller};
 use crate::frame::{Frame, FrameEvaluator};
 use crate::instruction::Evaluator;
 use crate::stack::StackHolder;
 use crate::tvm::Tvm;
+use enum_dispatch::enum_dispatch;
+use std::fmt::{Debug, Display, Formatter};
 
 #[enum_dispatch]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,7 +13,7 @@ pub enum TvmState {
     Call(CallState),
     Eval(EvalState),
     FrameEval(FrameEvalState),
-    Halt(HaltState)
+    Halt(HaltState),
 }
 
 impl TvmState {
@@ -29,7 +29,7 @@ impl TvmState {
 
     pub fn set_previous_state(&mut self, new_state: Box<TvmState>) {
         match self {
-            TvmState::Waiting(_) => {},
+            TvmState::Waiting(_) => {}
             TvmState::Call(state) => state.previous_state = new_state,
             TvmState::Eval(state) => state.previous_state = new_state,
             TvmState::FrameEval(state) => state.previous_state = new_state,
@@ -43,7 +43,7 @@ impl TvmState {
             TvmState::Call(state) => state.set_result(result),
             TvmState::Eval(state) => state.set_result(result),
             TvmState::FrameEval(state) => state.set_result(result),
-            TvmState::Halt(_state) => {},
+            TvmState::Halt(_state) => {}
         }
     }
 
@@ -85,7 +85,7 @@ pub enum StateResult {
     Break,
     Exit,
     Continue,
-    Halt
+    Halt,
 }
 
 #[enum_dispatch(TvmState)]
@@ -136,7 +136,11 @@ impl StateHolder for Tvm {
         match result {
             StateResult::None => {}
             StateResult::Return => {
-                if let TvmState::Call(CallState { callable: Callable::Function(function), .. }) = &self.state.clone() {
+                if let TvmState::Call(CallState {
+                    callable: Callable::Function(function),
+                    ..
+                }) = &self.state.clone()
+                {
                     let r = self.pop();
                     self.stack_pointer = self.frame_pointer;
                     self.frame_pointer = self.memory[self.stack_pointer] as usize;
@@ -156,7 +160,7 @@ impl StateHolder for Tvm {
                 let loop_state = self.state.get_loop_frame_eval_state();
                 if let Some(state) = loop_state {
                     let mut temp = state;
-                    if let TvmState::Eval(EvalState {frame, ..}) = &mut temp {
+                    if let TvmState::Eval(EvalState { frame, .. }) = &mut temp {
                         if frame.pc < frame.data.len() {
                             frame.pc += 2;
                         }
@@ -164,26 +168,32 @@ impl StateHolder for Tvm {
                     self.state = temp;
                 }
             }
-            StateResult::Continue => {
-
-            }
+            StateResult::Continue => {}
             StateResult::Halt => {
-                self.state = TvmState::Halt(HaltState { previous_state: Box::new(previous_state) });
+                self.state = TvmState::Halt(HaltState {
+                    previous_state: Box::new(previous_state),
+                });
             }
             StateResult::Exit => {
-                self.state = TvmState::Halt(HaltState { previous_state: Box::new(previous_state) });
+                self.state = TvmState::Halt(HaltState {
+                    previous_state: Box::new(previous_state),
+                });
             }
         }
     }
 
     fn tick(&mut self) {
+        self.log.push_str(format!("Tick {}: {}\n", self.ticks, self.state.get_name()).as_str());
+        self.state_history.push(self.state.clone());
         let mut temp_state = self.state.clone();
         // println!("Ticking: {}", temp_state);
         temp_state.tick(self); // This is so the PC can persist. Hopefully.
         temp_state.set_result(self.get_result()); // Update temp state with result.
         if matches!(temp_state, TvmState::Eval(_)) && matches!(self.state, TvmState::Eval(_)) {
             self.state = temp_state;
-        } else if matches!(self.state, TvmState::Call(_)) && !matches!(temp_state, TvmState::Call(_)) {
+        } else if matches!(self.state, TvmState::Call(_))
+            && !matches!(temp_state, TvmState::Call(_))
+        {
             // println!("Setting state to: {}", temp_state);
             // Assuming that temp_state is an EvalState, when we evaluate call state, we want to go back to the temp_state with incremented PC.
             self.state.set_previous_state(Box::new(temp_state)); // This is so the PC can persist. Hopefully. After the call, we want to go back to the EvalState.
@@ -193,27 +203,36 @@ impl StateHolder for Tvm {
     }
 
     fn call(&mut self, callable: Callable) {
-        self.set_state(CallState {
-            callable,
-            previous_state: Box::new(self.get_state()),
-            result: StateResult::Continue
-        }.into())
+        self.set_state(
+            CallState {
+                callable,
+                previous_state: Box::new(self.get_state()),
+                result: StateResult::Continue,
+            }
+            .into(),
+        )
     }
 
     fn frame_eval(&mut self, frame: Frame) {
-        self.set_state(FrameEvalState {
-            frame,
-            previous_state: Box::new(self.get_state()),
-            result: StateResult::Continue
-        }.into())
+        self.set_state(
+            FrameEvalState {
+                frame,
+                previous_state: Box::new(self.get_state()),
+                result: StateResult::Continue,
+            }
+            .into(),
+        )
     }
 
     fn eval(&mut self, frame: Frame) {
-        self.set_state(EvalState {
-            frame,
-            previous_state: Box::new(self.get_state()),
-            result: StateResult::Continue
-        }.into())
+        self.set_state(
+            EvalState {
+                frame,
+                previous_state: Box::new(self.get_state()),
+                result: StateResult::Continue,
+            }
+            .into(),
+        )
     }
 
     fn should_continue(&self) -> bool {
@@ -351,7 +370,7 @@ pub struct HaltState {
 impl State for HaltState {
     fn tick(&mut self, tvm: &mut Tvm) {
         tvm.state = self.clone().into();
-        println!("HaltState");
+        // println!("HaltState");
     }
 
     fn get_previous_state(&self) -> Box<TvmState> {
@@ -362,9 +381,7 @@ impl State for HaltState {
         StateResult::Halt
     }
 
-    fn set_result(&mut self, _result: StateResult) {
-
-    }
+    fn set_result(&mut self, _result: StateResult) {}
 }
 
 impl Display for HaltState {

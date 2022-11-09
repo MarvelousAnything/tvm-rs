@@ -6,6 +6,7 @@ use crate::state::{StateHolder, StateResult};
 use crate::tvm::Tvm;
 use rand::Rng;
 use std::fmt::{Debug, Display, Formatter};
+use std::io::stdout;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Callable {
@@ -56,7 +57,7 @@ impl Caller for Tvm {
         self.state.set_result(StateResult::Continue);
         match callable {
             Callable::Function(function) => {
-                println!("Calling function: {}", function);
+                // println!("Calling function: {}", function);
                 let frame = function.frame;
                 // expect that arguments have already been pushed to the stack
                 // push zero to the stack for the local data
@@ -84,7 +85,7 @@ impl Caller for Tvm {
             Callable::Native(native_function) => match native_function {
                 NativeFunction::IPrint { .. } => {
                     let value = self.pop();
-                    println!("stdout: {}", value);
+                    // println!("stdout: {}", value);
                     self.stdout.push_str(&value.to_string());
                     self.push(0);
                     self.state.set_result(Return);
@@ -92,7 +93,7 @@ impl Caller for Tvm {
                 NativeFunction::SPrint { .. } => {
                     let addr = self.pop();
                     let s = self.a2s(addr as usize);
-                    println!("stdout: {}", s);
+                    // println!("stdout: {}", s);
                     self.stdout.push_str(&s);
                     self.push(0);
                     self.state.set_result(Return);
@@ -132,7 +133,7 @@ impl Caller for Tvm {
                     self.state.set_result(Return);
                 }
                 NativeFunction::NL { .. } => {
-                    println!();
+                    // println!();
                     self.stdout.push('\n');
                     self.push(0);
                     self.state.set_result(Return);
@@ -146,14 +147,14 @@ impl Caller for Tvm {
                 NativeFunction::Timer { .. } => {
                     let id = self.pop();
                     let time = self.pop();
-                    println!("Timer {} set to {}", id, time);
+                    // println!("Timer {} set to {}", id, time);
                     self.push(0);
                     self.state.set_result(Return);
                 }
                 NativeFunction::StopTimer { .. } => {
                     let id = self.pop();
                     let time = self.pop();
-                    println!("Timer {} stopped at {}", id, time);
+                    // println!("Timer {} stopped at {}", id, time);
                     self.push(0);
                     self.state.set_result(Return);
                 }
@@ -161,12 +162,12 @@ impl Caller for Tvm {
                     let size = self.pop();
                     self.push(self.heap_size as i32);
                     self.heap_size += size as usize;
-                    println!("Allocating {} bytes", size);
+                    // println!("Allocating {} bytes", size);
                     self.state.set_result(Return);
                 }
                 NativeFunction::Free { .. } => {
                     let addr = self.pop();
-                    println!("Freeing {}", addr);
+                    // println!("Freeing {}", addr);
                     self.push(0);
                     self.state.set_result(Return);
                 }
@@ -177,7 +178,9 @@ impl Caller for Tvm {
                     self.push(0);
                     self.state.set_result(Return);
                 }
-                _ => println!("Calling native function: {:?}", native_function),
+                _ => {
+                    // println!("Calling native function: {:?}", native_function);
+                },
             },
         }
     }
@@ -194,7 +197,7 @@ impl Caller for Tvm {
     fn handle_function_return(&mut self, callable: Callable) {
         match callable {
             Callable::Function(function) => {
-                println!("Returning from function: {}", function);
+                // println!("Returning from function: {}", function);
                 let r = self.pop();
                 self.stack_pointer = self.frame_pointer;
                 self.frame_pointer = self.peek() as usize;

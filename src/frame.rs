@@ -1,6 +1,6 @@
 use crate::callable::Callable;
 use crate::instruction::Instruction;
-use crate::state::{StateHolder};
+use crate::state::StateHolder;
 use crate::tvm::Tvm;
 use std::fmt::{Display, Formatter};
 
@@ -42,7 +42,7 @@ impl Frame {
     pub fn builder() -> FrameBuilder {
         FrameBuilder::default()
     }
-    
+
     pub fn get_current(&self) -> &FrameData {
         &self.data[self.pc]
     }
@@ -86,7 +86,7 @@ pub trait FrameEvaluator {
 
 impl FrameEvaluator for Tvm {
     fn do_frame_eval(&mut self, frame: Frame) {
-        println!("Evaluating frame: {}", frame.name);
+        // println!("Evaluating frame: {}", frame.name);
         if self.should_continue() {
             self.eval(frame);
         }
@@ -101,7 +101,6 @@ pub struct FrameBuilder {
 }
 
 impl FrameBuilder {
-
     pub fn id(mut self, id: usize) -> Self {
         self.id = id;
         self

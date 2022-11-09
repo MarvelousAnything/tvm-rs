@@ -1,6 +1,6 @@
-use crate::state::{EvalState, TvmState};
-use crate::frame::{FrameData};
+use crate::frame::FrameData;
 use crate::instruction::Instruction;
+use crate::state::{EvalState, TvmState};
 
 impl TvmState {
     pub fn get_return_state(&self) -> EvalState {
@@ -31,7 +31,10 @@ impl TvmState {
                 if pc >= frame.data.len() {
                     pc = frame.data.len() - 1;
                 }
-                if matches!(frame.data[pc], FrameData::Instruction(Instruction::Loop { .. }, _)) {
+                if matches!(
+                    frame.data[pc],
+                    FrameData::Instruction(Instruction::Loop { .. }, _)
+                ) {
                     return true;
                 }
             }
@@ -51,7 +54,10 @@ impl TvmState {
                 if pc >= frame.data.len() {
                     pc = frame.data.len() - 1;
                 }
-                if matches!(frame.data[pc], FrameData::Instruction(Instruction::Loop { .. }, _)) {
+                if matches!(
+                    frame.data[pc],
+                    FrameData::Instruction(Instruction::Loop { .. }, _)
+                ) {
                     return Some(state);
                 }
             }
