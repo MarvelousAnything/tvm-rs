@@ -33,6 +33,8 @@ fn main() {
             println!("{:#?}", tvm.state);
         } else if s.trim() == "state" {
             println!("{}", tvm.state);
+        } else if s.trim() == "? prev" {
+            println!("{}", tvm.get_previous_state().get_name());
         } else if s.trim() == "? memory" {
             println!("{}", tvm.get_active_memory_string());
         } else if s.trim() == "? program" {
@@ -41,6 +43,8 @@ fn main() {
             println!("{}", tvm.stdout);
         } else if s.trim() == "? all" {
             println!("{}", tvm);
+        } else if s.trim() == "? loop" {
+            println!("{}", tvm.state.check_in_loop());
         } else if !s.is_empty() {
             print!("Tick {}:\t", tvm.ticks);
             tvm.tick();

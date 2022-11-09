@@ -42,6 +42,10 @@ impl Frame {
     pub fn builder() -> FrameBuilder {
         FrameBuilder::default()
     }
+    
+    pub fn get_current(&self) -> &FrameData {
+        &self.data[self.pc]
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

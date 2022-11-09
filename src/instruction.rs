@@ -368,7 +368,14 @@ pub trait Evaluator: Debug + Clone {
 impl Evaluator for Tvm {
     fn do_eval(&mut self, frame: &mut Frame) {
         if frame.pc >= frame.data.len() {
-            self.state.set_result(StateResult::Exit);
+            if self.state.check_in_loop() {
+                println!("loop detected");
+                frame.pc = 0;
+                self.state.set_result(StateResult::Continue)
+            } else {
+                println!("program finished");
+                self.state.set_result(StateResult::Exit);
+            }
             return;
         }
         let data = &frame.data.get(frame.pc).unwrap();
@@ -415,10 +422,9 @@ impl Evaluator for Tvm {
                     Instruction::Loop { .. } => {
                         let mut next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc])
                             .expect("could not get next frame for loop");
-                        let mut loop_frame = frame.clone();
                         next_frame.name = "loop-".to_string();
-                        next_frame.name.push_str(&loop_frame.name);
-                        loop_frame.pc -= 1;
+                        next_frame.name.push_str(&frame.name);
+                        // frame.pc += 1;
                         self.frame_eval(next_frame)
                     }
                     Instruction::Break { .. } => {

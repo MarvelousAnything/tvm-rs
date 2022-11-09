@@ -1,0 +1,53 @@
+CALL    .init
+
+.sq 1 0:
+    PUSH    1
+    FPPLUS
+    FETCH
+    PUSH    1
+    FPPLUS
+    FETCH
+    MUL
+    RETURN
+    PUSH    1
+
+.init 0 1:
+    PUSH    0
+    CALL    sprint
+    POP
+    PUSH    1
+    FPPLUS
+    PUSH    1
+    STORE
+    LOOP
+        PUSH    1
+        FPPLUS
+        FETCH
+        PUSH    10
+        GT
+        BREAK
+        PUSH    1
+        FPPLUS
+        FETCH
+        CALL    iprint
+        POP
+        PUSH    19
+        CALL    sprint
+        POP
+        PUSH    1
+        FPPLUS
+        FETCH
+        CALL    .sq
+        CALL    iprint
+        POP
+        CALL    nl
+        POP
+        PUSH    1
+        FPPLUS
+        PUSH    1
+        FPPLUS
+        FETCH
+        PUSH    1
+        ADD
+        STORE
+    PUSH    0
