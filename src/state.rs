@@ -325,7 +325,11 @@ impl State for EvalState {
 
 impl Display for EvalState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "EvalState {} {}", self.frame.name, self.frame.pc)
+        if self.frame.pc < self.frame.data.len() {
+            write!(f, "EvalState {} {} - {}", self.frame.name, self.frame.pc, self.frame.data[self.frame.pc])
+        } else {
+            write!(f, "EvalState {} {}", self.frame.name, self.frame.pc)
+        }
     }
 }
 
