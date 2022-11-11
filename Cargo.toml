@@ -1,5 +1,5 @@
 [package]
-name = "tvm-rs-2"
+name = "tvm-rs"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,6 +14,10 @@ incremental = true
 [profile.dev]
 incremental = true
 
+[dependencies.cursive]
+version = "0.20.0"
+features = ["crossterm-backend"]
+
 [dependencies]
 enum_dispatch = "0.3.8"
 rand = "0.8.5"
@@ -21,4 +25,3 @@ rand = "0.8.5"
 serde_json = "1.0.86"
 tui = "0.19.0"
 crossterm = "0.25.0"
-cursive = "0.20.0"

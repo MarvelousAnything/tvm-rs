@@ -16,7 +16,31 @@ pub struct TvmUI {
     controller_tx: mpsc::Sender<ControllerMessage>,
 }
 
+impl TvmUI {
+    pub fn new (controller_tx: mpsc::Sender<ControllerMessage>) -> Self {
+        let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>();
+        let mut ui = TvmUI {
+            cursive: Cursive::new(),
+            ui_tx,
+            ui_rx,
+            controller_tx
+        };
+
+        ui
+    }
+}
+
 pub struct Controller {
     rx: mpsc::Receiver<ControllerMessage>,
     ui: TvmUI,
+}
+
+impl Controller {
+    pub fn new() -> Result<Controller, String> {
+        let (tx, rx) = mpsc::channel::<ControllerMessage>();
+        Ok(Controller {
+            rx,
+            ui: TvmUI::new(tx.clone()),
+        })
+    }
 }

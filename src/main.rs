@@ -43,13 +43,13 @@ mod tvm;
 mod ui;
 
 fn main() {
-
     let tvm = Rc::new(RefCell::new(Tvm::default()));
     let program = Program::from_file("sq.json".to_string());
     tvm.borrow_mut().load(program);
     tvm.borrow_mut().start();
 
     let mut siv = Cursive::default();
+
     siv.add_layer(
         cursive::views::Dialog::around(
             ListView::new()
@@ -66,6 +66,7 @@ fn main() {
 
     siv.add_global_callback(' ', move |s| {
         s.call_on_name("stack", |view: &mut ListView| {
+            tvm.clone().borrow_mut().tick();
             view.clear();
             tvm.clone().borrow().get_active_memory()
                 .iter()
@@ -75,10 +76,5 @@ fn main() {
         });
     });
 
-    siv.add_global_callback(Key::Tab, move |_s| {
-        tvm.borrow_mut().tick();
-    });
-
-    siv.set_autorefresh(true);
     siv.run();
 }
