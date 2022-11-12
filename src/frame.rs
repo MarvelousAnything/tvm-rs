@@ -145,7 +145,7 @@ impl FrameBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state;
+    
     use crate::state::{EvalState, TvmState};
 
     #[test]

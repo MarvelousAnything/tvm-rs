@@ -6,7 +6,7 @@ use crate::state::{StateHolder, StateResult};
 use crate::tvm::Tvm;
 use rand::Rng;
 use std::fmt::{Debug, Display, Formatter};
-use std::io::stdout;
+
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Callable {
@@ -145,15 +145,15 @@ impl Caller for Tvm {
                     self.state.set_result(Return);
                 }
                 NativeFunction::Timer { .. } => {
-                    let id = self.pop();
-                    let time = self.pop();
+                    let _id = self.pop();
+                    let _time = self.pop();
                     // println!("Timer {} set to {}", id, time);
                     self.push(0);
                     self.state.set_result(Return);
                 }
                 NativeFunction::StopTimer { .. } => {
-                    let id = self.pop();
-                    let time = self.pop();
+                    let _id = self.pop();
+                    let _time = self.pop();
                     // println!("Timer {} stopped at {}", id, time);
                     self.push(0);
                     self.state.set_result(Return);
@@ -166,7 +166,7 @@ impl Caller for Tvm {
                     self.state.set_result(Return);
                 }
                 NativeFunction::Free { .. } => {
-                    let addr = self.pop();
+                    let _addr = self.pop();
                     // println!("Freeing {}", addr);
                     self.push(0);
                     self.state.set_result(Return);

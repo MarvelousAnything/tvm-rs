@@ -73,13 +73,16 @@ fn run_program(tvm: &mut Tvm) {
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("loop_benchmark");
     for n in [5, 10, 25, 50, 100, 200, 500, 1000].iter() {
-        let mut tvm = Tvm::default();
-        let program = get_program(*n);
-        tvm.load(program);
-        tvm.start();
         group.throughput(Throughput::Bytes(*n as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(n), n, |b, &n| {
-            b.iter(|| run_program(&mut tvm));
+        group.bench_with_input(BenchmarkId::from_parameter(n), n, |b, &_n| {
+            let mut tvm = Tvm::default();
+            let program = get_program(*n);
+            tvm.load(program);
+            b.iter(|| {
+                tvm.start();
+                run_program(&mut tvm);
+                tvm.reset();
+            });
         });
     }
     group.finish();
@@ -89,8 +92,14 @@ fn benchmark_sq(c: &mut Criterion) {
     let mut tvm = Tvm::default();
     let program = Program::from_file("sq.json".to_string());
     tvm.load(program);
-    tvm.start();
-    c.bench_function("sq", |b| b.iter(|| run_program(&mut tvm)));
+
+    c.bench_function("sq", |b| {
+        b.iter(|| {
+            tvm.start();
+            run_program(&mut tvm);
+            tvm.reset();
+        });
+    });
 }
 
 criterion_group!(benches, criterion_benchmark, benchmark_sq);

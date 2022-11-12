@@ -1,5 +1,5 @@
 use crate::callable::Callable;
-use crate::callable::Callable::Native;
+
 use crate::frame::{Frame, FrameData};
 use crate::function::Function;
 use crate::instruction::Instruction;
