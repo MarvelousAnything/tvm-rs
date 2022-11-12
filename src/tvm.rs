@@ -110,9 +110,9 @@ impl Tvm {
 
     pub fn get_active_memory(&self) -> Vec<(usize, i32)> {
         let mut memory = Vec::new();
-        // for i in 0..self.heap_size {
-        //     memory.push((i, self.memory[i]));
-        // }
+        for i in 0..self.heap_size {
+            memory.push((i, self.memory[i]));
+        }
         for i in self.stack_pointer..65536 {
             memory.push((i, self.memory[i]));
         }

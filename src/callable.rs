@@ -180,7 +180,7 @@ impl Caller for Tvm {
                 }
                 _ => {
                     // println!("Calling native function: {:?}", native_function);
-                },
+                }
             },
         }
     }

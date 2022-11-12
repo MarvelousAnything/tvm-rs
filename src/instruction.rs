@@ -6,143 +6,35 @@ use crate::tvm::Tvm;
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Instruction {
-    Push {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Fetch {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Store {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    IF {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Loop {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Break {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Return {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Call {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    FPPlus {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Add {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Sub {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Mul {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Div {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Mod {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Not {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    And {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    OR {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Xor {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    EQ {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Neq {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    LT {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Leq {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    GT {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Geq {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Pop {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    LShift {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    RShift {
-        op: u32,
-        name: String,
-        num_operands: u32,
-    },
-    Unknown(u32),
+    Push = 1,
+    Fetch,
+    Store,
+    IF,
+    Loop,
+    Break,
+    Return,
+    Call,
+    FPPlus,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Not,
+    And,
+    OR,
+    Xor,
+    EQ,
+    Neq,
+    LT,
+    Leq,
+    GT,
+    Geq,
+    Pop,
+    LShift,
+    RShift = 27,
 }
 
 impl Display for Instruction {
@@ -154,208 +46,70 @@ impl Display for Instruction {
 impl Instruction {
     pub fn get_instruction(op_code: u32) -> Instruction {
         match op_code {
-            1 => Instruction::Push {
-                op: 1,
-                name: "push".to_string(),
-                num_operands: 0,
-            },
-            2 => Instruction::Fetch {
-                op: 2,
-                name: "fetch".to_string(),
-                num_operands: 0,
-            },
-            3 => Instruction::Store {
-                op: 3,
-                name: "store".to_string(),
-                num_operands: 0,
-            },
-            4 => Instruction::IF {
-                op: 4,
-                name: "if".to_string(),
-                num_operands: 0,
-            },
-            5 => Instruction::Loop {
-                op: 5,
-                name: "loop".to_string(),
-                num_operands: 0,
-            },
-            6 => Instruction::Break {
-                op: 6,
-                name: "break".to_string(),
-                num_operands: 0,
-            },
-            7 => Instruction::Return {
-                op: 7,
-                name: "return".to_string(),
-                num_operands: 0,
-            },
-            8 => Instruction::Call {
-                op: 8,
-                name: "call".to_string(),
-                num_operands: 0,
-            },
-            9 => Instruction::FPPlus {
-                op: 9,
-                name: "fp+".to_string(),
-                num_operands: 0,
-            },
-            10 => Instruction::Add {
-                op: 10,
-                name: "+".to_string(),
-                num_operands: 0,
-            },
-            11 => Instruction::Sub {
-                op: 11,
-                name: "-".to_string(),
-                num_operands: 0,
-            },
-            12 => Instruction::Mul {
-                op: 12,
-                name: "*".to_string(),
-                num_operands: 0,
-            },
-            13 => Instruction::Div {
-                op: 13,
-                name: "/".to_string(),
-                num_operands: 0,
-            },
-            14 => Instruction::Mod {
-                op: 14,
-                name: "%".to_string(),
-                num_operands: 0,
-            },
-            15 => Instruction::Not {
-                op: 15,
-                name: "!".to_string(),
-                num_operands: 0,
-            },
-            16 => Instruction::And {
-                op: 16,
-                name: "&".to_string(),
-                num_operands: 0,
-            },
-            17 => Instruction::OR {
-                op: 17,
-                name: "|".to_string(),
-                num_operands: 0,
-            },
-            18 => Instruction::Xor {
-                op: 18,
-                name: "^".to_string(),
-                num_operands: 0,
-            },
-            19 => Instruction::EQ {
-                op: 19,
-                name: "==".to_string(),
-                num_operands: 0,
-            },
-            20 => Instruction::Neq {
-                op: 20,
-                name: "!=".to_string(),
-                num_operands: 0,
-            },
-            21 => Instruction::LT {
-                op: 21,
-                name: "<".to_string(),
-                num_operands: 0,
-            },
-            22 => Instruction::Leq {
-                op: 22,
-                name: "<=".to_string(),
-                num_operands: 0,
-            },
-            23 => Instruction::GT {
-                op: 23,
-                name: ">".to_string(),
-                num_operands: 0,
-            },
-            24 => Instruction::Geq {
-                op: 24,
-                name: ">=".to_string(),
-                num_operands: 0,
-            },
-            25 => Instruction::Pop {
-                op: 25,
-                name: "pop".to_string(),
-                num_operands: 0,
-            },
-            26 => Instruction::LShift {
-                op: 26,
-                name: "<<".to_string(),
-                num_operands: 0,
-            },
-            27 => Instruction::RShift {
-                op: 27,
-                name: ">>".to_string(),
-                num_operands: 0,
-            },
-            _ => Instruction::Unknown(op_code),
+            1 => Instruction::Push,
+            2 => Instruction::Fetch,
+            3 => Instruction::Store,
+            4 => Instruction::IF,
+            5 => Instruction::Loop,
+            6 => Instruction::Break,
+            7 => Instruction::Return,
+            8 => Instruction::Call,
+            9 => Instruction::FPPlus,
+            10 => Instruction::Add,
+            11 => Instruction::Sub,
+            12 => Instruction::Mul,
+            13 => Instruction::Div,
+            14 => Instruction::Mod,
+            15 => Instruction::Not,
+            16 => Instruction::And,
+            17 => Instruction::OR,
+            18 => Instruction::Xor,
+            19 => Instruction::EQ,
+            20 => Instruction::Neq,
+            21 => Instruction::LT,
+            22 => Instruction::Leq,
+            23 => Instruction::GT,
+            24 => Instruction::Geq,
+            25 => Instruction::Pop,
+            26 => Instruction::LShift,
+            27 => Instruction::RShift,
+            _ => panic!("Invalid instruction"),
         }
     }
 
     pub fn op(&self) -> u32 {
-        match self {
-            Instruction::Push { op, .. } => *op,
-            Instruction::Fetch { op, .. } => *op,
-            Instruction::Store { op, .. } => *op,
-            Instruction::IF { op, .. } => *op,
-            Instruction::Loop { op, .. } => *op,
-            Instruction::Break { op, .. } => *op,
-            Instruction::Return { op, .. } => *op,
-            Instruction::Call { op, .. } => *op,
-            Instruction::FPPlus { op, .. } => *op,
-            Instruction::Add { op, .. } => *op,
-            Instruction::Sub { op, .. } => *op,
-            Instruction::Mul { op, .. } => *op,
-            Instruction::Div { op, .. } => *op,
-            Instruction::Mod { op, .. } => *op,
-            Instruction::Not { op, .. } => *op,
-            Instruction::And { op, .. } => *op,
-            Instruction::OR { op, .. } => *op,
-            Instruction::Xor { op, .. } => *op,
-            Instruction::EQ { op, .. } => *op,
-            Instruction::Neq { op, .. } => *op,
-            Instruction::LT { op, .. } => *op,
-            Instruction::Leq { op, .. } => *op,
-            Instruction::GT { op, .. } => *op,
-            Instruction::Geq { op, .. } => *op,
-            Instruction::Pop { op, .. } => *op,
-            Instruction::LShift { op, .. } => *op,
-            Instruction::RShift { op, .. } => *op,
-            Instruction::Unknown(op) => *op,
-        }
+        self.clone() as u32
     }
 
     pub fn name(&self) -> String {
         match self {
-            Instruction::Push { name, .. } => name.clone(),
-            Instruction::Fetch { name, .. } => name.clone(),
-            Instruction::Store { name, .. } => name.clone(),
-            Instruction::IF { name, .. } => name.clone(),
-            Instruction::Loop { name, .. } => name.clone(),
-            Instruction::Break { name, .. } => name.clone(),
-            Instruction::Return { name, .. } => name.clone(),
-            Instruction::Call { name, .. } => name.clone(),
-            Instruction::FPPlus { name, .. } => name.clone(),
-            Instruction::Add { name, .. } => name.clone(),
-            Instruction::Sub { name, .. } => name.clone(),
-            Instruction::Mul { name, .. } => name.clone(),
-            Instruction::Div { name, .. } => name.clone(),
-            Instruction::Mod { name, .. } => name.clone(),
-            Instruction::Not { name, .. } => name.clone(),
-            Instruction::And { name, .. } => name.clone(),
-            Instruction::OR { name, .. } => name.clone(),
-            Instruction::Xor { name, .. } => name.clone(),
-            Instruction::EQ { name, .. } => name.clone(),
-            Instruction::Neq { name, .. } => name.clone(),
-            Instruction::LT { name, .. } => name.clone(),
-            Instruction::Leq { name, .. } => name.clone(),
-            Instruction::GT { name, .. } => name.clone(),
-            Instruction::Geq { name, .. } => name.clone(),
-            Instruction::Pop { name, .. } => name.clone(),
-            Instruction::LShift { name, .. } => name.clone(),
-            Instruction::RShift { name, .. } => name.clone(),
-            Instruction::Unknown(_) => "unknown".to_string(),
+            Instruction::Push => "push".to_string(),
+            Instruction::Fetch => "fetch".to_string(),
+            Instruction::Store => "store".to_string(),
+            Instruction::IF => "if".to_string(),
+            Instruction::Loop => "loop".to_string(),
+            Instruction::Break => "break".to_string(),
+            Instruction::Return => "return".to_string(),
+            Instruction::Call => "call".to_string(),
+            Instruction::FPPlus => "fpplus".to_string(),
+            Instruction::Add => "add".to_string(),
+            Instruction::Sub => "sub".to_string(),
+            Instruction::Mul => "mul".to_string(),
+            Instruction::Div => "div".to_string(),
+            Instruction::Mod => "mod".to_string(),
+            Instruction::Not => "not".to_string(),
+            Instruction::And => "and".to_string(),
+            Instruction::OR => "or".to_string(),
+            Instruction::Xor => "xor".to_string(),
+            Instruction::EQ => "eq".to_string(),
+            Instruction::Neq => "neq".to_string(),
+            Instruction::LT => "lt".to_string(),
+            Instruction::Leq => "leq".to_string(),
+            Instruction::GT => "gt".to_string(),
+            Instruction::Geq => "geq".to_string(),
+            Instruction::Pop => "pop".to_string(),
+            Instruction::LShift => "lshift".to_string(),
+            Instruction::RShift => "rshift".to_string(),
         }
     }
 }
@@ -387,23 +141,24 @@ impl Evaluator for Tvm {
             FrameData::Frame(frame) => self.frame_eval(frame.clone()),
             FrameData::Instruction(instruction, ..) => {
                 // println!("Evaluating instruction: {}", instruction);
-                self.log.push_str(format!("Evaluating instruction: {}\n", instruction).as_str());
+                self.log
+                    .push_str(format!("Evaluating instruction: {}\n", instruction).as_str());
                 match instruction {
-                    Instruction::Push { .. } => {
+                    Instruction::Push => {
                         let x = &frame.data[frame.pc].get_id();
                         self.push(*x);
                         frame.pc += 1;
                     }
-                    Instruction::Fetch { .. } => {
+                    Instruction::Fetch => {
                         let index = self.pop();
                         self.push(self.memory[index as usize]);
                     }
-                    Instruction::Store { .. } => {
+                    Instruction::Store => {
                         let value = self.pop();
                         let index = self.pop();
                         self.memory[index as usize] = value;
                     }
-                    Instruction::IF { .. } => {
+                    Instruction::IF => {
                         let condition = self.pop();
                         let next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc])
                             .expect("could not get next frame");
@@ -422,7 +177,7 @@ impl Evaluator for Tvm {
                         }
                     }
                     // Evaluate the next frame until break or return is called.
-                    Instruction::Loop { .. } => {
+                    Instruction::Loop => {
                         let mut next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc])
                             .expect("could not get next frame for loop");
                         next_frame.name = "loop-".to_string();
@@ -430,113 +185,112 @@ impl Evaluator for Tvm {
                         // frame.pc += 1;
                         self.frame_eval(next_frame)
                     }
-                    Instruction::Break { .. } => {
+                    Instruction::Break => {
                         let x = self.pop();
                         if x != 0 {
                             self.state.set_result(StateResult::Break);
                         }
                     }
-                    Instruction::Return { .. } => {
+                    Instruction::Return => {
                         self.state.set_result(StateResult::Return);
                     }
-                    Instruction::Call { .. } => {
+                    Instruction::Call => {
                         let id = &frame.data[frame.pc].get_id();
                         let callable = self.get_callable(*id);
                         self.call(callable);
                         frame.pc += 1;
                     }
-                    Instruction::FPPlus { .. } => {
+                    Instruction::FPPlus => {
                         let x = self.pop();
                         self.push(x + self.frame_pointer as i32);
                     }
-                    Instruction::Add { .. } => {
+                    Instruction::Add => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push(x + y);
                     }
-                    Instruction::Sub { .. } => {
+                    Instruction::Sub => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push(x - y);
                     }
-                    Instruction::Mul { .. } => {
+                    Instruction::Mul => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push(x * y);
                     }
-                    Instruction::Div { .. } => {
+                    Instruction::Div => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push(x / y);
                     }
-                    Instruction::Mod { .. } => {
+                    Instruction::Mod => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push(x % y);
                     }
-                    Instruction::Not { .. } => {
+                    Instruction::Not => {
                         let x = self.pop();
                         self.push(!x);
                     }
-                    Instruction::And { .. } => {
+                    Instruction::And => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push(x & y);
                     }
-                    Instruction::OR { .. } => {
+                    Instruction::OR => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push(x | y);
                     }
-                    Instruction::Xor { .. } => {
+                    Instruction::Xor => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push(x ^ y);
                     }
-                    Instruction::EQ { .. } => {
+                    Instruction::EQ => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push((x == y) as i32);
                     }
-                    Instruction::Neq { .. } => {
+                    Instruction::Neq => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push((x != y) as i32);
                     }
-                    Instruction::LT { .. } => {
+                    Instruction::LT => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push((x < y) as i32);
                     }
-                    Instruction::Leq { .. } => {
+                    Instruction::Leq => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push((x <= y) as i32);
                     }
-                    Instruction::GT { .. } => {
+                    Instruction::GT => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push((x > y) as i32);
                     }
-                    Instruction::Geq { .. } => {
+                    Instruction::Geq => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push((x >= y) as i32);
                     }
-                    Instruction::Pop { .. } => {
+                    Instruction::Pop => {
                         self.pop();
                     }
-                    Instruction::LShift { .. } => {
+                    Instruction::LShift => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push(x << y);
                     }
-                    Instruction::RShift { .. } => {
+                    Instruction::RShift => {
                         let y = self.pop();
                         let x = self.pop();
                         self.push(x >> y);
                     }
-                    Instruction::Unknown(op) => panic!("Unknown instruction: {}", op),
                 }
             }
             FrameData::Callable(callable, ..) => panic!("Cannot evaluate callable: {:?}", callable),

@@ -183,7 +183,8 @@ impl StateHolder for Tvm {
     }
 
     fn tick(&mut self) {
-        self.log.push_str(format!("Tick {}: {}\n", self.ticks, self.state.get_name()).as_str());
+        self.log
+            .push_str(format!("Tick {}: {}\n", self.ticks, self.state.get_name()).as_str());
         self.state_history.push(self.state.clone());
         let mut temp_state = self.state.clone();
         // println!("Ticking: {}", temp_state);
@@ -326,7 +327,11 @@ impl State for EvalState {
 impl Display for EvalState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.frame.pc < self.frame.data.len() {
-            write!(f, "EvalState {} {} - {}", self.frame.name, self.frame.pc, self.frame.data[self.frame.pc])
+            write!(
+                f,
+                "EvalState {} {} - {}",
+                self.frame.name, self.frame.pc, self.frame.data[self.frame.pc]
+            )
         } else {
             write!(f, "EvalState {} {}", self.frame.name, self.frame.pc)
         }

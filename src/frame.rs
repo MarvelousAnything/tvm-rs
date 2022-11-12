@@ -116,14 +116,14 @@ impl FrameBuilder {
         self
     }
 
-    pub fn callable(mut self, callable: i32, args: Vec<i32>) -> Self {
+    pub fn callable(mut self, callable: i32) -> Self {
         self.data
-            .push(FrameData::Callable(Callable::get_native(callable), args));
+            .push(FrameData::Callable(Callable::get_native(callable), vec![]));
         self
     }
 
-    pub fn instruction(mut self, instruction: Instruction, args: Vec<i32>) -> Self {
-        self.data.push(FrameData::Instruction(instruction, args));
+    pub fn instruction(mut self, instruction: Instruction) -> Self {
+        self.data.push(FrameData::Instruction(instruction, vec![]));
         self
     }
 
@@ -169,8 +169,8 @@ mod tests {
             .id(1)
             .name("test".to_string())
             .frame(Frame::builder().id(2).name("test2".to_string()).build())
-            .callable(-101, vec![1, 2, 3])
-            .instruction(Instruction::get_instruction(1), vec![1, 2, 3])
+            .callable(-101)
+            .instruction(Instruction::get_instruction(1))
             .primitive(1)
             .build();
         assert_eq!(frame.id, 1);
