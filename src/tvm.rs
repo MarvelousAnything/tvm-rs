@@ -109,15 +109,25 @@ impl Tvm {
     }
 
     pub fn get_active_memory(&self) -> Vec<(usize, i32)> {
-        let mut memory = Vec::new();
-        // for i in 0..self.heap_size {
-        //     memory.push((i, self.memory[i]));
-        // }
-        for i in self.stack_pointer..65536 {
-            memory.push((i, self.memory[i]));
-        }
-        memory.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let mut memory = self.get_heap_vec();
+        memory.append(&mut self.get_stack_vec());
         memory
+    }
+
+    pub fn get_stack_vec(&self) -> Vec<(usize, i32)> {
+        let mut stack = Vec::new();
+        for i in self.stack_pointer..65536 {
+            stack.push((i, self.memory[i]));
+        }
+        stack
+    }
+
+    pub fn get_heap_vec(&self) -> Vec<(usize, i32)> {
+        let mut heap = Vec::new();
+        for i in 0..self.heap_size {
+            heap.push((i, self.memory[i]));
+        }
+        heap
     }
 
     pub fn get_active_memory_string(&self) -> String {
@@ -233,6 +243,37 @@ mod tests {
                 (4, 'o' as i32),
                 (5, 0),
                 (65535, 0)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_get_stack() {
+        let mut tvm = Tvm::default();
+        let program = get_test_program();
+        tvm.load(program);
+        assert_eq!(
+            tvm.get_stack_vec(),
+            vec![
+                (65535, 0)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_get_heap() {
+        let mut tvm = Tvm::default();
+        let program = get_test_program();
+        tvm.load(program);
+        assert_eq!(
+            tvm.get_heap_vec(),
+            vec![
+                (0, 'h' as i32),
+                (1, 'e' as i32),
+                (2, 'l' as i32),
+                (3, 'l' as i32),
+                (4, 'o' as i32),
+                (5, 0),
             ]
         );
     }

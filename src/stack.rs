@@ -39,7 +39,7 @@ impl StackHolder for Tvm {
     }
 
     fn peek(&self) -> i32 {
-        self.memory[self.stack_pointer]
+        self.memory[self.stack_pointer + 1]
     }
 
     fn get_active_stack(&self) -> &[i32] {

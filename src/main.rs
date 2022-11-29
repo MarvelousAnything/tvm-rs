@@ -27,7 +27,6 @@ mod frame;
 mod function;
 mod heap;
 mod instruction;
-mod instruction_tests;
 mod native;
 mod program;
 mod stack;
@@ -96,8 +95,8 @@ fn ui<B: Backend>(f: &mut Frame<B>, tvm: &mut Tvm) {
         .style(normal_style)
         .height(1)
         .bottom_margin(1);
-    let active = tvm.get_active_memory();
-    let rows = active.iter().map(|(k, v)| {
+    let stack = tvm.get_stack_vec();
+    let rows = stack.iter().map(|(k, v)| {
         let cells = vec![Cell::from(k.to_string()), Cell::from(v.to_string())];
         Row::new(cells)
     });
