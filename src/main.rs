@@ -1,10 +1,9 @@
-use crossterm::event::{KeyModifiers};
+use crossterm::event::KeyModifiers;
 use crossterm::{
-    event::{self, Event, KeyCode, EnableMouseCapture, DisableMouseCapture},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-
 
 use std::{error::Error, io};
 
@@ -46,7 +45,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
     let res = run_tvm(&mut terminal, &mut tvm);
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
     terminal.show_cursor()?;
     if let Err(err) = res {
         eprintln!("Error: {}", err);
@@ -64,15 +67,15 @@ fn run_tvm<B: Backend>(terminal: &mut Terminal<B>, tvm: &mut Tvm) -> io::Result<
                 (KeyCode::Char('t'), KeyModifiers::NONE) => {
                     tvm.tick();
                     tvm.update_table_state();
-                },
+                }
                 (KeyCode::Char('s'), KeyModifiers::NONE) => {
                     tvm.start();
                     tvm.update_table_state();
-                },
+                }
                 (KeyCode::Char('r'), KeyModifiers::NONE) => {
                     tvm.reset();
                     tvm.update_table_state();
-                },
+                }
                 _ => {}
             }
         }
@@ -81,7 +84,14 @@ fn run_tvm<B: Backend>(terminal: &mut Terminal<B>, tvm: &mut Tvm) -> io::Result<
 
 fn ui<B: Backend>(f: &mut Frame<B>, tvm: &mut Tvm) {
     let main_layout = Layout::default()
-        .constraints([Constraint::Percentage(15), Constraint::Percentage(45), Constraint::Percentage(40)].as_ref())
+        .constraints(
+            [
+                Constraint::Percentage(15),
+                Constraint::Percentage(45),
+                Constraint::Percentage(40),
+            ]
+            .as_ref(),
+        )
         .margin(3)
         .direction(Direction::Horizontal)
         .split(f.size());
@@ -117,11 +127,18 @@ fn ui<B: Backend>(f: &mut Frame<B>, tvm: &mut Tvm) {
         .direction(Direction::Vertical)
         .split(main_layout[1]);
 
-    let state = Paragraph::new(tvm.state.get_name())
-        .block(Block::default().borders(Borders::ALL).title("Current State"));
+    let state = Paragraph::new(tvm.state.get_name()).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Current State"),
+    );
 
     let state_history = List::new(Tvm::state_history_to_list_items(&tvm.state_history))
-        .block(Block::default().borders(Borders::ALL).title("State History"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("State History"),
+        )
         .highlight_style(selected_style)
         .highlight_symbol(">> ");
 

@@ -375,7 +375,7 @@ impl Evaluator for Tvm {
                 self.state.set_result(StateResult::Continue)
             } else {
                 // println!("program finished");
-                self.log.push_str("program finished\n");
+                self.log.push_str("Attempting to exit frame\n");
                 self.state.set_result(StateResult::Exit);
             }
             return;
@@ -405,21 +405,33 @@ impl Evaluator for Tvm {
                     }
                     Instruction::IF { .. } => {
                         let condition = self.pop();
-                        let next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc])
+                        let mut next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc])
                             .expect("could not get next frame");
+                        next_frame.name = "if-".to_string();
+                        next_frame.name.push_str(&frame.name);
+                        self.log.push_str(format!("next frame: {}\n", next_frame.name).as_str());
+                        self.log.push_str(format!("condition: {}\n", condition).as_str());
                         if condition != 0 {
-                            self.frame_eval(next_frame);
+                            next_frame.name.push_str("-0");
                             frame.pc += 2;
-                        } else {
-                            frame.pc += 1;
                             self.frame_eval(next_frame);
-                            frame.pc += 1;
+                        } else {
+                            // This is always just adding 2.
+                            let mut next_frame = Tvm::get_next_frame(&mut frame.data[frame.pc + 1])
+                                .expect("could not get next frame");
+                            next_frame.name = "if-".to_string();
+                            next_frame.name.push_str(&frame.name);
+                            next_frame.name.push_str("-1");
+                            frame.pc += 2;
+                            // frame.pc += 1;
+                            self.frame_eval(next_frame);
+                            // frame.pc += 1;
                         }
-                        match self.get_result() {
-                            StateResult::Break => (),
-                            StateResult::Return => (),
-                            _ => panic!("IF instruction did not terminate."),
-                        }
+                        // match self.get_result() {
+                        //     StateResult::Break => (),
+                        //     StateResult::Return => (),
+                        //     _ => panic!("IF instruction did not terminate."),
+                        // }
                     }
                     // Evaluate the next frame until break or return is called.
                     Instruction::Loop { .. } => {

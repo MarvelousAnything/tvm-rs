@@ -6,7 +6,7 @@ use crate::state::{StateHolder, StateResult};
 use crate::tvm::Tvm;
 use rand::Rng;
 use std::fmt::{Debug, Display, Formatter};
-use std::io::stdout;
+
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Callable {

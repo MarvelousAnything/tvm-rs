@@ -6,6 +6,9 @@ use crate::tvm::Tvm;
 use enum_dispatch::enum_dispatch;
 use std::fmt::{Debug, Display, Formatter};
 
+#[cfg(test)]
+use crate::native::NativeFunction;
+
 #[enum_dispatch]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TvmState {
@@ -141,6 +144,7 @@ impl StateHolder for Tvm {
                     ..
                 }) = &self.state.clone()
                 {
+                    // Handle the return of a function.
                     let r = self.pop();
                     self.stack_pointer = self.frame_pointer;
                     self.frame_pointer = self.memory[self.stack_pointer] as usize;
@@ -149,14 +153,14 @@ impl StateHolder for Tvm {
                 }
 
                 // If there is a nested frame. For instance a return statement within a loop, this will not work.
-                // For now, my rational is that the return call will be within a frame eval state
+                // For now, my rational is that the return call (within the execution of an eval state) will be within a frame eval state
                 // and that frame eval state will have a previous state of a call state. This is the call for the function that is being returned from.
                 // That call state will have a previous state of eval state. This is where we want to return to.
                 // This is only for non-native functions.
                 self.state = self.state.get_return_state().into();
             }
             StateResult::Break => {
-                // Assume break is in a loop.
+                // Assume break is in a loop somewhere.
                 let loop_state = self.state.get_loop_frame_eval_state();
                 if let Some(state) = loop_state {
                     let mut temp = state;
@@ -175,9 +179,25 @@ impl StateHolder for Tvm {
                 });
             }
             StateResult::Exit => {
-                self.state = TvmState::Halt(HaltState {
-                    previous_state: Box::new(previous_state),
-                });
+                // Exit should exit the frame not the program.
+                self.log.push_str(format!("current state: {}\n", self.state.get_name()).as_str());
+                if let TvmState::Eval(EvalState { frame, .. }) = &self.state {
+                    self.log.push_str(format!("current frame: {}, pc: {}\n", frame.name, frame.pc).as_str());
+                    // frame.pc += 1;
+                }
+                // get enclosing frame.
+                let mut enclosing_state = *previous_state.get_previous_state();
+                self.log.push_str(format!("enclosing state: {}\n", enclosing_state.get_name()).as_str());
+                if let TvmState::Eval(EvalState { frame, .. }) = &mut enclosing_state {
+                    self.log.push_str(format!("enclosing frame: {}, pc: {}\n", frame.name, frame.pc).as_str());
+                    frame.pc += 1;
+                } else {
+                    self.state = TvmState::Halt(HaltState {
+                        previous_state: Box::new(previous_state),
+                    });
+                    return;
+                }
+                self.state = enclosing_state;
             }
         }
     }
@@ -259,6 +279,13 @@ impl State for WaitingState {
     fn set_result(&mut self, _result: StateResult) {}
 }
 
+#[cfg(test)]
+impl Default for WaitingState {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl Display for WaitingState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "WaitingState")
@@ -291,6 +318,17 @@ impl State for CallState {
     }
 }
 
+#[cfg(test)]
+impl Default for CallState {
+    fn default() -> Self {
+        Self {
+            callable: Callable::Native(NativeFunction::Unknown(-999)),
+            previous_state: Box::new(WaitingState::default().into()),
+            result: StateResult::Continue,
+        }
+    }
+}
+
 impl Display for CallState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Call {}", self.callable)
@@ -320,6 +358,17 @@ impl State for EvalState {
 
     fn set_result(&mut self, result: StateResult) {
         self.result = result;
+    }
+}
+
+#[cfg(test)]
+impl Default for EvalState {
+    fn default() -> Self {
+        Self {
+            frame: Frame::default(),
+            previous_state: Box::new(WaitingState::default().into()),
+            result: StateResult::Continue,
+        }
     }
 }
 
@@ -360,6 +409,17 @@ impl State for FrameEvalState {
     }
 }
 
+#[cfg(test)]
+impl Default for FrameEvalState {
+    fn default() -> Self {
+        Self {
+            frame: Frame::default(),
+            previous_state: Box::new(WaitingState::default().into()),
+            result: StateResult::Continue,
+        }
+    }
+}
+
 impl Display for FrameEvalState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "FrameEvalState {}", self.frame.name)
@@ -386,6 +446,15 @@ impl State for HaltState {
     }
 
     fn set_result(&mut self, _result: StateResult) {}
+}
+
+#[cfg(test)]
+impl Default for HaltState {
+    fn default() -> Self {
+        Self {
+            previous_state: Box::new(WaitingState::default().into()),
+        }
+    }
 }
 
 impl Display for HaltState {

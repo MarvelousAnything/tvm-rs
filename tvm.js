@@ -1,10 +1,11 @@
-var mem=[]
+const mem = [];
 mem.length = 65536
-var sp
-var fp
-var hwin
-var imgnum, butnum, labnum, tabnum
-var edata
+let sp;
+let fp;
+let hwin;
+let imgnum, butnum, labnum, tabnum;
+let edata;
+let m;
 
 startvm()
 
@@ -19,8 +20,8 @@ function pop(x) {
 }
 
 function a2s(x) {
-    s = ""
-    while(mem[x] != 0) {
+    let s = ""
+    while (mem[x] !== 0) {
         s += String.fromCharCode(mem[x])
         x++
     }
@@ -28,46 +29,88 @@ function a2s(x) {
 }
 
 function leval(l) {
-    pc = 0
-    while(pc >= 0) {
-        pc = eval(l, pc)
+    let pc = 0
+    while (pc >= 0) {
+        pc = evalutate(l, pc)
     }
     return pc
 }
 
 function call(n) {
     // Convert the old numbering to the new
-    if(n > -100) {
-        switch(n) {
-            case -1: n = -101; break;
-            case -2: n = -102; break;
+    if (n > -100) {
+        switch (n) {
+            case -1:
+                n = -101;
+                break;
+            case -2:
+                n = -102;
+                break;
             // case -3: n = -103: break;
             // case -4: n = -104; break;
-            case -5: n = -105; break;
-            case -10: n = -106; break;
-            case -11: n = -107; break;
-            case -12: n = -108; break;
-            case -13: n = -201; break;
-            case -14: n = -202; break;
-            case -15: n = -203; break;
-            case -16: n = -204; break;
-            case -17: n = -205; break;
-            case -18: n = -206; break;
-            case -19: n = -109; break;
-            case -20: n = -110; break;
-            case -21: n = -111; break;
-            case -22: n = -207; break;
-            case -23: n = -208; break;
-            case -24: n = -209; break;
-            case -25: n = -103; break;
-            case -26: n = -104; break;
-            case -27: n = -210; break;
+            case -5:
+                n = -105;
+                break;
+            case -10:
+                n = -106;
+                break;
+            case -11:
+                n = -107;
+                break;
+            case -12:
+                n = -108;
+                break;
+            case -13:
+                n = -201;
+                break;
+            case -14:
+                n = -202;
+                break;
+            case -15:
+                n = -203;
+                break;
+            case -16:
+                n = -204;
+                break;
+            case -17:
+                n = -205;
+                break;
+            case -18:
+                n = -206;
+                break;
+            case -19:
+                n = -109;
+                break;
+            case -20:
+                n = -110;
+                break;
+            case -21:
+                n = -111;
+                break;
+            case -22:
+                n = -207;
+                break;
+            case -23:
+                n = -208;
+                break;
+            case -24:
+                n = -209;
+                break;
+            case -25:
+                n = -103;
+                break;
+            case -26:
+                n = -104;
+                break;
+            case -27:
+                n = -210;
+                break;
         }
     }
-    if(n < -200 && hwin == null) {
+    if (n < -200 && hwin == null) {
         hwin = window.open()
     }
-    switch(n) {
+    switch (n) {
         case -101:	/* iprint */
             x = pop()
             stdout.value += x
@@ -81,10 +124,9 @@ function call(n) {
             break
         case -103:	/* iread */
             p = pop()
-            if(p == 0-1) {
+            if (p == 0 - 1) {
                 x = window.prompt("Integer input:")
-            }
-            else {
+            } else {
                 s = a2s(p)
                 x = window.prompt(s)
             }
@@ -93,16 +135,14 @@ function call(n) {
         case -104:	/* sread */
             a = pop()
             p = pop()
-            if(p == -1) {
+            if (p == -1) {
                 x = window.prompt("String input:")
-            }
-            else {
+            } else {
                 s = a2s(p)
                 x = window.prompt(s)
             }
-            for(i = 0; i < x.length; i++)
-                mem[a+i] = x.charCodeAt(i)
-            mem[a+i] = 0
+            for (i = 0; i < x.length; i++) mem[a + i] = x.charCodeAt(i)
+            mem[a + i] = 0
             push(0)
             break
         case -105:	/* nl */
@@ -115,10 +155,13 @@ function call(n) {
             push(n)
             break
         case -107:	/* timer */
-            var f
-            to = pop()
+            let f;
+            let to = pop()
             f = pop()
-            n = setTimeout(function(){call(f); pop();}, to)
+            n = setTimeout(function () {
+                call(f);
+                pop();
+            }, to)
             push(n)
             break
         case -108:	/* stoptimer */
@@ -135,15 +178,15 @@ function call(n) {
             n = pop()
             src = pop()
             s = a2s(src)
-            i = hwin.document.getElementById('img'+n)
+            i = hwin.document.getElementById('img' + n)
             i.src = s
             push(0)
             break
         case -203:	/* button */
-            butname = pop()
+            let butname = pop()
             n = pop()
             s = a2s(butname)
-            t1 = '<button id=but' + butnum + ' onclick="window.opener.call(' + n + ');window.opener.pop()">'
+            let t1 = '<button id=but' + butnum + ' onclick="window.opener.call(' + n + ');window.opener.pop()">'
             hwin.document.write(t1 + s + '</button>\n')
             push(butnum)
             butnum++
@@ -155,7 +198,7 @@ function call(n) {
             push(0)
             break
         case -205: /* makelabel */
-            labtxt = pop()
+            let labtxt = pop()
             s = a2s(labtxt)
             hwin.document.write('<label id=lab' + labnum + '>' + s + '</label>\n')
             push(labnum)
@@ -163,9 +206,9 @@ function call(n) {
             break
         case -206:	/* setlabel */
             n = pop()
-            label = pop()
+            let label = pop()
             s = a2s(label)
-            l = hwin.document.getElementById('lab'+n)
+            l = hwin.document.getElementById('lab' + n)
             l.innerHTML = s
             push(0)
             break
@@ -181,10 +224,9 @@ function call(n) {
         case -111:	/* i2s */
             s = pop()
             n = pop()
-            istr = n.toString(10)
-            for(i = 0; i < istr.length; i++)
-                mem[s + i] = istr.charCodeAt(i)
-            mem[s+i] = 0
+            let istr = n.toString(10)
+            for (i = 0; i < istr.length; i++) mem[s + i] = istr.charCodeAt(i)
+            mem[s + i] = 0
             push(istr.length)
             break
         case -207:	/* maketable */
@@ -192,9 +234,9 @@ function call(n) {
             c = pop()
             f = pop()
             hwin.document.write('<table id=tab' + tabnum + '>\n')
-            for(i = 0; i < r; i++) {
+            for (let i = 0; i < r; i++) {
                 hwin.document.write('<tr>\n')
-                for(j = 0; j < c; j++) {
+                for (let j = 0; j < c; j++) {
                     hwin.document.write('<td onclick="window.opener.cellclick(' + tabnum + ',' + i + ',' + j + ',' + f + ')"></td>\n')
                 }
                 hwin.document.write('</tr>\n')
@@ -204,10 +246,10 @@ function call(n) {
             tabnum++
             break
         case -208:	/* setcell */
-            tnum = pop()
+            let tnum = pop()
             r = pop()
             c = pop()
-            cval = pop()
+            let cval = pop()
             s = a2s(cval)
             t = hwin.document.getElementById('tab' + tnum)
             t.rows[r].cells[c].innerHTML = s
@@ -228,7 +270,7 @@ function call(n) {
             nlab = pop()
             s = a2s(nlab)
             b = hwin.document.getElementById('but' + bnum)
-            b.innerHTML=s
+            b.innerHTML = s
             push(0)
             break
         case -3:	/* old iread */
@@ -238,26 +280,24 @@ function call(n) {
         case -4:	/* old sread */
             a = pop()
             x = window.prompt("String input:")
-            for(i = 0; i < x.length; i++)
-                mem[a+i] = x.charCodeAt(i)
-            mem[a+i] = 0
+            for (i = 0; i < x.length; i++) mem[a + i] = x.charCodeAt(i)
+            mem[a + i] = 0
             push(0)
             break
         default:
-            if(n < 0) {
+            if (n < 0) {
                 console.log("Invalid function call", n)
                 return
             }
-            for(i = 0; i < m[n+2][3]; i++)
-                push(0)
+            for (i = 0; i < m[n + 2][3]; i++) push(0)
             mem[sp] = fp
             fp = sp
             sp--
-            leval(m[n+2][4])
+            leval(m[n + 2][4])
             r = pop()
             sp = fp
             fp = mem[sp]
-            sp += m[n+2][2] + m[n+2][3]
+            sp += m[n + 2][2] + m[n + 2][3]
             push(r)
             break
     }
@@ -266,26 +306,25 @@ function call(n) {
 function cellclick(t, r, c, f) {
     push(c)
     push(r)
-    for(i = 0; i < m[f+2][3]; i++)
-        push(0)
+    for (let i = 0; i < m[f + 2][3]; i++) push(0)
     mem[sp] = fp
     fp = sp
     sp--
-    leval(m[f+2][4])
+    leval(m[f + 2][4])
     r = pop()
     sp = fp
     fp = mem[sp]
-    sp += m[f+2][2] + m[f+2][3]
-//	push(r)
+    sp += m[f + 2][2] + m[f + 2][3]
+	// push(r)
 }
 
-function eval(l, pc) {
-    if(pc >= l.length) {
+function evalutate(l, pc) {
+    if (pc >= l.length) {
         return -1
     }
-    ir = l[pc]
+    let ir = l[pc]
     pc++
-    switch(ir) {
+    switch (ir) {
         case 1:	/* push */
             push(l[pc])
             pc++
@@ -301,36 +340,30 @@ function eval(l, pc) {
             break
         case 4:	/* if */
             x = pop()
-            if(x != 0) {
+            if (x !== 0) {
                 r = leval(l[pc])
                 pc += 2
-            }
-            else {
+            } else {
                 pc++
                 r = leval(l[pc])
                 pc++
             }
-            if(r <= -2)
-                return r
+            if (r <= -2) return r
             break
         case 5:	/* loop */
-            while(1) {
+            while (1) {
                 r = leval(l[pc])
-                if(r == -2)
-                    break // essentially just returns pc instead of -3. Does not exit the frame.
-                else if(r == -3)
-                    return -3
+                if (r === -2) break // essentially just returns pc instead of -3. Does not exit the frame.
+                else if (r === -3) return -3 // exit the frame.
             }
             pc++
             break
         case 6:	/* break */
             x = pop()
-            if(x != 0)
-                return -2
+            if (x !== 0) return -2
             break
         case 7:	/* return */
             return -3
-            break
         case 8:	/* call */
             call(l[pc])
             pc++
@@ -343,27 +376,27 @@ function eval(l, pc) {
         case 10:	/* add */
             y = pop()
             x = pop()
-            push(x+y)
+            push(x + y)
             break
         case 11:	/* sub */
             y = pop()
             x = pop()
-            push(x-y)
+            push(x - y)
             break
         case 12:	/* mul */
             y = pop()
             x = pop()
-            push(x*y)
+            push(x * y)
             break
         case 13:	/* div */
             y = pop()
             x = pop()
-            push(Math.floor(x/y))
+            push(Math.floor(x / y))
             break
         case 14:	/* mod */
             y = pop()
             x = pop()
-            push(x%y)
+            push(x % y)
             break
         case 15:	/* not */
             x = pop()
@@ -372,65 +405,53 @@ function eval(l, pc) {
         case 16:	/* and */
             y = pop()
             x = pop()
-            push(x&y)
+            push(x & y)
             break
         case 17:	/* or */
             y = pop()
             x = pop()
-            push(x|y)
+            push(x | y)
             break
         case 18:	/* xor */
             y = pop()
             x = pop()
-            push(x^y)
+            push(x ^ y)
             break
         case 19:	/* eq */
             y = pop()
             x = pop()
-            if(x == y)
-                push(1)
-            else
-                push(0)
+            if (x === y) push(1)
+            else push(0)
             break
         case 20:	/* neq */
             y = pop()
             x = pop()
-            if(x != y)
-                push(1)
-            else
-                push(0)
+            if (x !== y) push(1)
+            else push(0)
             break
         case 21:	/* lt */
             y = pop()
             x = pop()
-            if(x < y)
-                push(1)
-            else
-                push(0)
+            if (x < y) push(1)
+            else push(0)
             break
         case 22:	/* leq */
             y = pop()
             x = pop()
-            if(x <= y)
-                push(1)
-            else
-                push(0)
+            if (x <= y) push(1)
+            else push(0)
             break
         case 23:	/* gt */
             y = pop()
             x = pop()
-            if(x > y)
-                push(1)
-            else
-                push(0)
+            if (x > y) push(1)
+            else push(0)
             break
         case 24:	/* geq */
             y = pop()
             x = pop()
-            if(x >= y)
-                push(1)
-            else
-                push(0)
+            if (x >= y) push(1)
+            else push(0)
             break
         case 25:	/* pop */
             pop()
@@ -464,7 +485,7 @@ function startvm() {
     butnum = 0
     labnum = 0
     tabnum = 0
-    document.write("<html>\n<body>\n")
+    document.write("<html lang='en'>\n<body>\n")
     document.write('<button onclick="start();">Start</button><br>\n')
     document.write("<label>Standard Output</label><br>\n")
     document.write('<textarea id="stdout" cols="80" rows="20"></textarea><br>\n')
@@ -472,7 +493,7 @@ function startvm() {
     m = JSON.parse(tape)
     sp = 65535
     fp = 65535
-    for(n = 0; n < m[1].length; n++) {
-        mem[m[1][n][0]] = m[1][n][1]
+    for (const element of m[1]) {
+        mem[element[0]] = element[1]
     }
 }
