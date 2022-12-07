@@ -1,3 +1,5 @@
+extern crate core;
+
 use crossterm::event::KeyModifiers;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -33,6 +35,7 @@ mod state;
 mod state_utils;
 mod tvm;
 mod ui;
+mod program_parser;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let program = Program::from_file("sq.json".to_string());

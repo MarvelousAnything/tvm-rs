@@ -93,7 +93,7 @@ impl FrameEvaluator for Tvm {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct FrameBuilder {
     id: usize,
     name: String,

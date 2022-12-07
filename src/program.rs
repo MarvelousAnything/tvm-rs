@@ -125,7 +125,7 @@ impl Display for Program {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ProgramBuilder {
     entry_point: usize,
     heap: Vec<(usize, i32)>,

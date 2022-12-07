@@ -22,7 +22,7 @@ impl Display for Function {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct FunctionBuilder {
     id: usize,
     name: String,
